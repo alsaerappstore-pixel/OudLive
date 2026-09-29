@@ -13,6 +13,8 @@ final class AudioModel: ObservableObject {
     @Published private(set) var inputRoute = ""
     @Published private(set) var inputLevel: Float = 0
     @Published private(set) var outputLevel: Float = 0
+    @Published private(set) var limitingDB: Float = 0
+    @Published private(set) var savedFavorite = false
     @Published private(set) var route = "لم يبدأ الصوت"
     @Published private(set) var bufferMS = 0.0
     @Published private(set) var hardwareMS = 0.0
@@ -29,6 +31,7 @@ final class AudioModel: ObservableObject {
     private let storageKey = "OudLive.settings.v1"
     private var generation = 0
     private var activeRouteKey = ""
+    private var lastTap: Date?
 
     init() {
         if let data = UserDefaults.standard.data(forKey: storageKey),
@@ -39,9 +42,11 @@ final class AudioModel: ObservableObject {
         // Do not restore mute/bypass implicitly; the engine is always stopped on launch.
         settings[.mute] = 0; settings[.bypass] = 0; stableBuffer = saved.stableBuffer
         apply()
+        savedFavorite = UserDefaults.standard.data(forKey: "OudLive.favorite.v2") != nil
         Timer.publish(every: 0.07, on: .main, in: .common).autoconnect().sink { [weak self] _ in
             guard let self, self.running else { return }
             self.inputLevel = self.bridge.inputPeak; self.outputLevel = self.bridge.outputPeak
+            self.limitingDB = self.bridge.gainReduction
             if self.bridge.renderError != 0 {
                 let code = self.bridge.renderError
                 self.stop(); self.message = "توقّف الصوت بسبب الملحق (\(code)). جرّب وضع الاستقرار ثم أعد التشغيل."
@@ -74,6 +79,27 @@ final class AudioModel: ObservableObject {
         (session.currentRoute.inputs + session.currentRoute.outputs).map(\.uid).joined(separator: "|") + "|\(session.sampleRate)"
     }
     func value(_ parameter: Parameter) -> Double { settings[parameter] }
+    func boostInput() { set(.input, min(30, value(.input) + 6)) }
+    func tapTempo() {
+        let now = Date()
+        if let previous = lastTap {
+            let milliseconds = now.timeIntervalSince(previous) * 1000
+            if (80...1200).contains(milliseconds) { set(.delayTime, milliseconds) }
+        }
+        lastTap = now
+    }
+    func saveFavorite() {
+        if let data = try? JSONEncoder().encode(settings) {
+            UserDefaults.standard.set(data, forKey: "OudLive.favorite.v2"); savedFavorite = true
+            message = "حُفظ لونك المفضل. استعده من زر مفضلتي."
+        }
+    }
+    func loadFavorite() {
+        guard let data = UserDefaults.standard.data(forKey: "OudLive.favorite.v2"),
+              var favorite = try? JSONDecoder().decode(SoundSettings.self, from: data), favorite.valid else { return }
+        favorite[.input] = settings[.input]; favorite[.output] = settings[.output]; favorite[.mute] = settings[.mute]
+        settings = favorite; apply(); save()
+    }
     func set(_ parameter: Parameter, _ value: Double) {
         settings[parameter] = value
         if parameter != .mute && parameter != .bypass && parameter != .output && parameter != .input { settings.preset = "مخصص" }
@@ -146,7 +172,7 @@ final class AudioModel: ObservableObject {
     }
     func stop() {
         generation += 1; starting = false; bridge.stop(); running = false
-        inputLevel = 0; outputLevel = 0; UIApplication.shared.isIdleTimerDisabled = false
+        inputLevel = 0; outputLevel = 0; limitingDB = 0; UIApplication.shared.isIdleTimerDisabled = false
         try? session.setActive(false, options: .notifyOthersOnDeactivation)
     }
     private func refreshRoute() {

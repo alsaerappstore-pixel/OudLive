@@ -7,6 +7,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setParameter:(NSInteger)parameter value:(float)value;
 @property(nonatomic, readonly) float inputPeak;
 @property(nonatomic, readonly) float outputPeak;
+@property(nonatomic, readonly) float gainReduction;
 @property(nonatomic, readonly) int renderError;
 @end
 NS_ASSUME_NONNULL_END

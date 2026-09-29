@@ -9,7 +9,8 @@
 
 static void flat(oud::DSP &d) {
     for(int i=0;i<oud::Count;++i) d.set(i,oud::defaults[i]);
-    d.set(oud::Output,0); d.set(oud::Compression,0); d.set(oud::Reverb,0);
+    d.set(oud::Input,0); d.set(oud::Output,0); d.set(oud::Compression,0); d.set(oud::Reverb,0);
+    d.set(oud::Makeup,0); d.set(oud::Delay,0);
 }
 static void settle(oud::DSP &d, int frames=12000) {
     std::vector<float> z(frames),l(frames),r(frames); d.process(z.data(),l.data(),r.data(),z.size());
@@ -79,8 +80,56 @@ int main() {
         d.set(oud::Mute,1); settle(d,24000);
         x.fill(.9f); d.process(x.data(),l.data(),r.data(),x.size());
         for(float v:l)assert(std::abs(v)<.0001);
-        d.set(oud::Input,std::numeric_limits<float>::infinity()); assert(d.get(oud::Input)==18);
+        d.set(oud::Input,std::numeric_limits<float>::infinity()); assert(d.get(oud::Input)==30);
         std::cout<<"PASS: bounded output, NaN rejection, mute at "<<rate<<" Hz\n";
+    }
+    {
+        oud::DSP base,boost; flat(base); flat(boost); boost.set(oud::Input,12);
+        base.prepare(48000); boost.prepare(48000);
+        double ratio=sineRMS(boost,1000,.01f)/sineRMS(base,1000,.01f);
+        assert(ratio>3.9 && ratio<4.1);
+        std::cout<<"PASS: +12 dB capture boost raises quiet input by four times\n";
+    }
+    {
+        oud::DSP base,boost; flat(base); flat(boost); boost.set(oud::Makeup,6);
+        base.prepare(48000); boost.prepare(48000);
+        double ratio=sineRMS(boost,1000,.03f)/sineRMS(base,1000,.03f);
+        assert(ratio>1.9 && ratio<2.1);
+        std::cout<<"PASS: independent compressor makeup restores output level\n";
+    }
+    {
+        auto lateEnergy=[](float seconds) {
+            oud::DSP d; flat(d); d.set(oud::Decay,seconds); d.set(oud::Reverb,1); d.prepare(48000); settle(d);
+            std::vector<float>x(144000),l(144000),r(144000); x[0]=.4f;
+            d.process(x.data(),l.data(),r.data(),x.size());
+            double energy=0; for(size_t i=48000;i<x.size();++i) energy+=l[i]*l[i]+r[i]*r[i]; return energy;
+        };
+        assert(lateEnergy(6)>lateEnergy(.5f)*100);
+        std::cout<<"PASS: long decay produces a measurably longer reverb tail\n";
+    }
+    {
+        oud::DSP dry,wet; flat(dry); flat(wet); wet.set(oud::Reverb,1); wet.set(oud::Predelay,80);
+        dry.prepare(48000); wet.prepare(48000); settle(dry); settle(wet);
+        std::vector<float>x(12000),a(12000),b(12000),c(12000),e(12000); x[0]=.4;
+        dry.process(x.data(),a.data(),b.data(),x.size()); wet.process(x.data(),c.data(),e.data(),x.size());
+        for(size_t i=0;i<3840;++i) assert(std::abs(a[i]-c[i])<1e-5);
+        double delta=0; for(size_t i=3840;i<x.size();++i)delta+=std::abs(a[i]-c[i]); assert(delta>.01);
+        std::cout<<"PASS: predelay keeps reverb behind the initial pick attack\n";
+    }
+    {
+        oud::DSP d; flat(d); d.set(oud::Input,30); d.prepare(48000); settle(d);
+        sineRMS(d,1000,.5);
+        assert(d.gainReduction.load()>10 && d.outputPeak.load()<=.941f);
+        settle(d,48000);
+        double recovered=sineRMS(d,1000,.001f);
+        assert(recovered>.02 && recovered<.024);
+        std::cout<<"PASS: linked limiter bounds peaks and recovers after overload\n";
+    }
+    {
+        oud::DSP dry,wet; flat(dry); flat(wet); wet.set(oud::Reverb,1); wet.set(oud::Delay,1); wet.set(oud::Modulation,1); wet.set(oud::Intensity,0);
+        dry.prepare(48000); wet.prepare(48000);
+        assert(std::abs(sineRMS(dry,880)-sineRMS(wet,880))<1e-6);
+        std::cout<<"PASS: global effects intensity zero removes all wet contributions\n";
     }
     std::cout<<"All DSP checks passed. Device latency and iOS integration still require hardware testing.\n";
 }

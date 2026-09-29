@@ -9,12 +9,13 @@
 namespace oud {
 constexpr float pi = 3.14159265358979323846f;
 enum Param : int { Input, Output, Low, Mid, High, Compression, Reverb, Delay,
-    DelayTime, Feedback, Modulation, ModRate, Flanger, Doubler, Bypass, Mute, Count };
+    DelayTime, Feedback, Modulation, ModRate, Flanger, Doubler, Bypass, Mute,
+    Decay, Predelay, Tone, Makeup, Intensity, Count };
 inline float clamp(float x, float a, float b) { return std::max(a, std::min(b, x)); }
 inline float db(float x) { return std::pow(10.f, x / 20.f); }
-constexpr std::array<float, Count> defaults = {0,-9,0,0,0,.2f,.12f,0,280,.25f,0,.7f,0,0,0,0};
-constexpr std::array<float, Count> minimum = {-24,-60,-12,-12,-12,0,0,0,40,0,0,.1f,0,0,0,0};
-constexpr std::array<float, Count> maximum = {18,0,12,12,12,1,.8f,.8f,800,.7f,.8f,3,1,.8f,1,1};
+constexpr std::array<float, Count> defaults = {6,-9,0,0,0,.25f,.24f,.12f,320,.32f,0,.7f,0,0,0,0,2.4f,22,.5f,4,1};
+constexpr std::array<float, Count> minimum = {-24,-60,-12,-12,-12,0,0,0,40,0,0,.1f,0,0,0,0,.4f,0,0,0,0};
+constexpr std::array<float, Count> maximum = {30,0,12,12,12,1,1,1,1200,.82f,1,3,1,1,1,1,7,100,1,12,1.5f};
 static_assert(std::atomic<float>::is_always_lock_free, "Audio needs lock-free float atomics");
 
 struct Biquad {
@@ -39,11 +40,12 @@ struct Ring {
     void push(float x) { data[cursor]=x; cursor=(cursor+1)%data.size(); }
 };
 struct Comb {
-    Ring ring; float damp=0;
-    float tick(float x) {
+    Ring ring; float damp=0, feedback=.8f, desiredFeedback=.8f;
+    float tick(float x, float damping) {
         float y=ring.read(float(ring.data.size()-2));
-        damp=.25f*y+.75f*damp;
-        ring.push(x+.76f*damp); return y;
+        damp=damping*y+(1-damping)*damp;
+        feedback+=.001f*(desiredFeedback-feedback);
+        ring.push(x+feedback*damp); return y;
     }
 };
 struct Allpass {
@@ -61,11 +63,12 @@ class DSP {
     float rate=48000, smoothing=0, phase=0, phaseD1=0, phaseD2=0, envelope=0, attack=0, release=0;
     float hpX=0,hpY=0,hpCoefficient=0;
     std::array<Biquad,3> eq;
-    Ring echo,mod;
-    std::array<std::array<Comb,4>,2> combs;
+    Ring echo,echoRight,mod,pre;
+    float echoDampL=0,echoDampR=0,limiterGain=1,limiterRelease=0;
+    std::array<std::array<Comb,8>,2> combs;
     std::array<std::array<Allpass,2>,2> diffusion;
 public:
-    std::atomic<float> inputPeak{0}, outputPeak{0};
+    std::atomic<float> inputPeak{0}, outputPeak{0}, gainReduction{0};
     DSP() { for(int i=0;i<Count;++i) target[i].store(defaults[i]); }
     void set(int p,float value) {
         if(p>=0 && p<Count && std::isfinite(value))
@@ -76,45 +79,58 @@ public:
         rate=sampleRate; smoothing=1-std::exp(-1/(.012f*rate));
         attack=std::exp(-1/(.005f*rate)); release=std::exp(-1/(.12f*rate));
         hpCoefficient=std::exp(-2*pi*35/rate);
-        phase=phaseD1=phaseD2=envelope=hpX=hpY=0; eq={};
+        phase=phaseD1=phaseD2=envelope=hpX=hpY=echoDampL=echoDampR=0; eq={};
+        limiterGain=1; limiterRelease=1-std::exp(-1/(.08f*rate));
         for(int i=0;i<Count;++i) current[i]=get(i);
         // Fade up from silence on every start, even with persisted settings.
         current[Output]=-60;
-        echo.prepare(size_t(rate*.85f)+4); mod.prepare(size_t(rate*.08f)+4);
-        constexpr float times[4]={.0297f,.0371f,.0411f,.0437f};
+        echo.prepare(size_t(rate*1.55f)+4); echoRight.prepare(size_t(rate*1.55f)+4);
+        mod.prepare(size_t(rate*.08f)+4); pre.prepare(size_t(rate*.15f)+4);
+        constexpr float times[8]={.0297f,.0371f,.0411f,.0437f,.0313f,.0337f,.0397f,.0479f};
         for(int c=0;c<2;++c) {
-            for(int k=0;k<4;++k) { combs[c][k].ring.prepare(size_t(rate*(times[k]+c*.0013f))+2); combs[c][k].damp=0; }
+            for(int k=0;k<8;++k) {
+                auto &comb=combs[c][k]; comb.ring.prepare(size_t(rate*(times[k]+c*.0013f))+2); comb.damp=0;
+                comb.feedback=comb.desiredFeedback=std::pow(.001f,float(comb.ring.data.size()-2)/(rate*current[Decay]));
+            }
             diffusion[c][0].ring.prepare(size_t(rate*(.005f+c*.0003f))+2);
             diffusion[c][1].ring.prepare(size_t(rate*(.0017f+c*.0002f))+2);
         }
-        inputPeak.store(0); outputPeak.store(0);
+        inputPeak.store(0); outputPeak.store(0); gainReduction.store(0);
     }
     void process(const float *in,float *left,float *right,size_t frames) {
         std::array<float,Count> requested;
         for(int p=0;p<Count;++p) requested[p]=get(p);
+        for(auto &channel:combs) for(auto &comb:channel)
+            comb.desiredFeedback=std::pow(.001f,float(comb.ring.data.size()-2)/(rate*requested[Decay]));
         // Gain changes use a 12ms ramp; EQ moves by a block-sized equivalent.
         float blockSmooth=1-std::pow(1-smoothing,float(frames));
         for(int p=Low;p<=High;++p) current[p]+=blockSmooth*(requested[p]-current[p]);
         eq[0].peak(180,current[Low],rate); eq[1].peak(1100,current[Mid],rate); eq[2].peak(4800,current[High],rate);
-        float inPeak=0,outPeak=0;
+        float inPeak=0,outPeak=0,maxReduction=0;
         for(size_t i=0;i<frames;++i) {
             for(int p=0;p<Count;++p) if(p<Low || p>High) {
                 current[p]+=smoothing*(requested[p]-current[p]);
                 if(std::abs(requested[p]-current[p])<.0001f) current[p]=requested[p];
             }
             float raw=std::isfinite(in[i])?clamp(in[i],-8,8):0;
-            inPeak=std::max(inPeak,std::abs(raw));
             float dry=raw*db(current[Input]);
+            inPeak=std::max(inPeak,std::abs(dry));
             float x=hpCoefficient*(hpY+dry-hpX); hpX=dry; hpY=x;
             for(auto &band:eq) x=band.tick(x);
             float absolute=std::abs(x), coef=absolute>envelope?attack:release;
             envelope=coef*envelope+(1-coef)*absolute;
             float level=20*std::log10(std::max(envelope,1e-8f));
             float threshold=-10-20*current[Compression], ratio=1+5*current[Compression];
-            float reduction=std::max(0.f,level-threshold)*(1-1/ratio);
-            x*=db(-reduction);
+            // 6 dB soft knee preserves quieter attacks while gradually compressing.
+            float over=level-threshold;
+            float knee=over < -3 ? 0 : (over>3 ? over : (over+3)*(over+3)/12);
+            float reduction=knee*(1-1/ratio);
+            x*=db(current[Makeup]-reduction);
             float echoSample=echo.read(current[DelayTime]*.001f*rate);
-            echo.push(x+echoSample*current[Feedback]);
+            float echoSampleR=echoRight.read(current[DelayTime]*.00125f*rate);
+            echoDampL+=.4f*(echoSample-echoDampL); echoDampR+=.4f*(echoSampleR-echoDampR);
+            echo.push(x+echoDampR*current[Feedback]);
+            echoRight.push(x+echoDampL*current[Feedback]);
             float isFlanger=current[Flanger];
             float modBase=(.018f*(1-isFlanger)+.0025f*isFlanger)*rate;
             float modDepth=(.003f*(1-isFlanger)+.002f*isFlanger)*rate;
@@ -129,23 +145,41 @@ public:
             if(phaseD1>2*pi) phaseD1-=2*pi;
             if(phaseD2>2*pi) phaseD2-=2*pi;
             float rv[2]={0,0};
+            float preFrames=current[Predelay]*.001f*rate;
+            float rvInput=pre.read(std::max(1.f,preFrames));
+            float earlyL=pre.read(preFrames+.011f*rate)*.35f+pre.read(preFrames+.027f*rate)*.2f;
+            float earlyR=pre.read(preFrames+.017f*rate)*.35f+pre.read(preFrames+.033f*rate)*.2f;
+            pre.push(x);
             for(int c=0;c<2;++c) {
-                for(auto &comb:combs[c]) rv[c]+=comb.tick(x)*.25f;
+                for(auto &comb:combs[c]) rv[c]+=comb.tick(rvInput,.1f+.65f*current[Tone])*.125f;
                 for(auto &ap:diffusion[c]) rv[c]=ap.tick(rv[c]);
             }
+            rv[0]=rv[0]*1.7f+earlyL; rv[1]=rv[1]*1.7f+earlyR;
             float mixed[2];
-            mixed[0]=x*(1-.4f*current[Modulation])+ml*current[Modulation]+dl*current[Doubler]+echoSample*current[Delay]+rv[0]*current[Reverb];
-            mixed[1]=x*(1-.4f*current[Modulation])+mr*current[Modulation]+dr*current[Doubler]+echoSample*current[Delay]+rv[1]*current[Reverb];
+            float strength=current[Intensity];
+            mixed[0]=x+strength*((ml-.35f*x)*current[Modulation]+dl*current[Doubler]+echoSample*current[Delay]+rv[0]*current[Reverb]);
+            mixed[1]=x+strength*((mr-.35f*x)*current[Modulation]+dr*current[Doubler]+echoSampleR*current[Delay]+rv[1]*current[Reverb]);
             float gain=db(current[Output])*(1-current[Mute]);
+            float y[2];
             for(int c=0;c<2;++c) {
-                float y=(mixed[c]*(1-current[Bypass])+dry*current[Bypass])*gain;
-                // Last-resort peak clamp; not advertised as a transparent mastering limiter.
-                y=std::isfinite(y)?clamp(y,-.98f,.98f):0;
-                (c==0?left:right)[i]=y; outPeak=std::max(outPeak,std::abs(y));
+                y[c]=(mixed[c]*(1-current[Bypass])+dry*current[Bypass])*gain;
+                if(!std::isfinite(y[c])) y[c]=0;
+            }
+            // Stereo-linked, zero-lookahead peak limiter: immediate reduction,
+            // 80ms recovery. Unlike a hard clipper it preserves the stereo image.
+            float peak=std::max(std::abs(y[0]),std::abs(y[1]));
+            float needed=peak>.94f?.94f/peak:1;
+            if(needed<limiterGain) limiterGain=needed;
+            else limiterGain+=limiterRelease*(needed-limiterGain);
+            maxReduction=std::max(maxReduction,-20*std::log10(std::max(limiterGain,1e-8f)));
+            for(int c=0;c<2;++c) {
+                float limited=clamp(y[c]*limiterGain,-.98f,.98f);
+                (c==0?left:right)[i]=limited; outPeak=std::max(outPeak,std::abs(limited));
             }
         }
         inputPeak.store(std::max(inPeak,inputPeak.load()*.88f),std::memory_order_relaxed);
         outputPeak.store(std::max(outPeak,outputPeak.load()*.88f),std::memory_order_relaxed);
+        gainReduction.store(std::max(maxReduction,gainReduction.load()*.88f),std::memory_order_relaxed);
     }
 };
 }

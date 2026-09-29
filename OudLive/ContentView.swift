@@ -1,193 +1,248 @@
 import SwiftUI
-import MediaPlayer
+import AVKit
 
-private let gold = Color(red: 0.89, green: 0.72, blue: 0.43)
+private let gold = Color(red: 0.91, green: 0.75, blue: 0.47)
+private let mint = Color(red: 0.39, green: 0.83, blue: 0.74)
 private let surface = Color(red: 0.10, green: 0.13, blue: 0.14)
 
 @MainActor
 struct ContentView: View {
     @ObservedObject var audio: AudioModel
-    @State private var performance = false
+    @State private var page = 0
     @State private var showHelp = false
-    private let presets = ["طبيعي", "كلاسيكي", "فخم / ثقيل", "حاد", "مشكل"]
+    @State private var previousAmounts: [Parameter: Double] = [:]
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
+            VStack(alignment: .leading, spacing: 20) {
                 header
-                Picker("نوع الصوت", selection: Binding(get: { audio.mode }, set: { audio.chooseMode($0) })) {
-                    ForEach(SoundMode.allCases) { Text($0.title).tag($0) }
-                }.pickerStyle(.segmented).accessibilityLabel("نوع الصوت")
-                status
-                VStack(alignment: .leading, spacing: 12) {
-                    sectionTitle("لون العزف", subtitle: audio.settings.preset)
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 130))], spacing: 10) {
-                        ForEach(presets, id: \.self) { name in
-                            Button { audio.choosePreset(name) } label: {
-                                HStack {
-                                    Text(name).font(.headline)
-                                    Spacer(minLength: 4)
-                                    if audio.settings.preset == name { Image(systemName: "checkmark.circle.fill") }
-                                }.frame(minHeight: performance ? 66 : 48).padding(.horizontal, 14)
-                                    .foregroundStyle(audio.settings.preset == name ? Color.black : Color.white)
-                                    .background(audio.settings.preset == name ? gold : surface, in: RoundedRectangle(cornerRadius: 16))
-                            }.buttonStyle(.plain).accessibilityAddTraits(audio.settings.preset == name ? .isSelected : [])
-                        }
-                    }
-                }
-                control(.output)
-                if !performance {
-                    control(.input)
-                    VStack(spacing: 18) {
-                        sectionTitle("المساحة والصدى", subtitle: "SPACE")
-                        control(.reverb); control(.delay)
-                        if audio.value(.delay) > 0 { control(.delayTime); control(.feedback) }
-                    }.card()
-                    VStack(spacing: 18) {
-                        sectionTitle("نبرة العود", subtitle: "EQ + DYNAMICS")
-                        control(.low); control(.mid); control(.high); control(.compression)
-                    }.card()
-                    VStack(spacing: 18) {
-                        sectionTitle("الحركة والعرض", subtitle: "MODULATION")
-                        Picker("نوع الحركة", selection: Binding(get: { audio.value(.flanger) > 0.5 ? 1 : 0 }, set: { audio.set(.flanger, Double($0)) })) {
-                            Text("Chorus").tag(0); Text("Flanger").tag(1)
-                        }.pickerStyle(.segmented)
-                        control(.modulation); control(.modRate); control(.doubler)
-                    }.card()
-                    if audio.mode == .voice {
-                        Label("وضع مستقل للصوت البشري مع إعدادات محفوظة. تصحيح النغمة التلقائي Auto‑Tune غير متاح في هذه النسخة.", systemImage: "mic.fill")
-                            .font(.footnote).foregroundStyle(.secondary).card()
-                    }
-                    connection
-                }
-                Text("معالجة على الجهاز • لا تسجيل ولا رفع للصوت")
+                monitor
+                Picker("صفحة التحكم", selection: $page) {
+                    Text("العزف").tag(0); Text("المؤثرات").tag(1); Text("التوصيل").tag(2)
+                }.pickerStyle(.segmented)
+                if page == 0 { performance }
+                if page == 1 { effects }
+                if page == 2 { connection }
+                Text("عود لايف 2.0  •  معالجة محلية بلا تسجيل")
                     .font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity)
-            }.padding(20).frame(maxWidth: 760)
-                .frame(maxWidth: .infinity)
+            }.padding(20).frame(maxWidth: 740).frame(maxWidth: .infinity)
         }
-        .background(Color(red: 0.045, green: 0.065, blue: 0.07))
+        .background(Color(red: 0.035, green: 0.055, blue: 0.06))
         .tint(gold)
         .safeAreaInset(edge: .bottom) { transport }
         .sheet(isPresented: $showHelp) { help }
-    }
-    private var header: some View {
-        HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text("عود لايف").font(.largeTitle.bold()).foregroundStyle(gold)
-                Text("صوتك، كما تحب تسمعه").font(.subheadline).foregroundStyle(.secondary)
-            }
-            Spacer()
-            Button { showHelp = true } label: { Image(systemName: "questionmark.circle").font(.title2).frame(width: 44, height: 44) }.accessibilityLabel("طريقة الاستخدام")
+        .onAppear {
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--preview-effects") { page = 1 }
+            if ProcessInfo.processInfo.arguments.contains("--preview-connection") { page = 2 }
+            #endif
         }
     }
-    private var status: some View {
-        VStack(alignment: .leading, spacing: 13) {
-            HStack {
-                Circle().fill(audio.running ? Color.green : Color.gray).frame(width: 8, height: 8)
-                Text(audio.running ? "مباشر الآن" : "متوقف").font(.headline)
-                Spacer()
-                Button(performance ? "إظهار المؤثرات" : "واجهة العزف") { performance.toggle() }
-                    .font(.subheadline).frame(minHeight: 44)
+    private var header: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("عود لايف").font(.largeTitle.bold()).foregroundStyle(gold)
+                Text("مساحة أكبر. تفاصيل أوضح.").font(.subheadline).foregroundStyle(.secondary)
             }
-            meter("الميكروفون", value: audio.inputLevel)
-            meter("الخروج", value: audio.outputLevel)
+            Spacer()
+            Button { showHelp = true } label: {
+                Image(systemName: "questionmark.circle").font(.title2).frame(width: 44, height: 44)
+            }.accessibilityLabel("دليل العزف")
+        }
+    }
+    private var monitor: some View {
+        VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Label("اختيار السماعة", systemImage: "headphones")
+                Label(audio.running ? "على الهواء" : "جاهز للعزف", systemImage: audio.running ? "waveform" : "waveform.circle")
+                    .font(.headline).foregroundStyle(audio.running ? mint : gold)
                 Spacer()
-                AudioOutputPicker().frame(width: 60, height: 44)
-                    .accessibilityLabel("اختيار مخرج الصوت")
-            }.font(.subheadline)
-            Text(audio.message).font(.footnote).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text(audio.bluetoothOutput ? "BLUETOOTH" : "AUDIO").font(.caption.bold()).foregroundStyle(.secondary)
+                AudioOutputPicker().frame(width: 44, height: 44).accessibilityLabel("اختيار السماعة")
+            }
+            meter("التقاط", value: audio.inputLevel)
+            meter("خروج", value: audio.outputLevel)
+            if audio.limitingDB > 2 {
+                Label("حماية القمم تعمل • خفّض الالتقاط أو تعويض المستوى إذا أصبح الصوت مضغوطًا.", systemImage: "waveform.badge.minus")
+                    .font(.caption).foregroundStyle(gold)
+            }
+            Text(audio.message).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }.card()
     }
-    private var connection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            sectionTitle("توصيل الصوت", subtitle: "AUDIO")
-            Text(audio.route.isEmpty ? "لا يوجد خرج متصل" : audio.route).font(.subheadline)
-            if !audio.inputRoute.isEmpty { Text("الميكروفون الفعلي: \(audio.inputRoute)").font(.caption) }
-            if audio.bluetoothOutput {
-                Text("البلوتوث متصل. التأخير أعلى من السلك، وقد تلاحظ فرقًا بين العزف والصوت المسموع.")
-                    .font(.footnote).foregroundStyle(gold)
+    private var performance: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Picker("مصدر الأداء", selection: Binding(get: { audio.mode }, set: { audio.chooseMode($0) })) {
+                ForEach(SoundMode.allCases) { Text($0.title).tag($0) }
+            }.pickerStyle(.segmented)
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(audio.settings.preset).font(.title2.bold())
+                    Text(SoundSettings.detail(audio.settings.preset)).font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button { audio.saveFavorite() } label: { Label("حفظ", systemImage: "bookmark") }.buttonStyle(.bordered)
+                if audio.savedFavorite {
+                    Button { audio.loadFavorite() } label: { Image(systemName: "bookmark.fill") }.buttonStyle(.bordered).accessibilityLabel("استعادة مفضلتي")
+                }
             }
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 140))], spacing: 10) {
+                ForEach(SoundSettings.names, id: \.self) { name in presetButton(name) }
+            }
+            VStack(spacing: 18) {
+                heading("التحكم السريع", icon: "slider.horizontal.3")
+                control(.input, accent: mint)
+                HStack {
+                    Text("قرّب الآيفون من العود أولًا").font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("تقوية +6 dB") { audio.boostInput() }.buttonStyle(.bordered).disabled(audio.value(.input) >= 30)
+                }
+                control(.reverb); control(.intensity); control(.output, accent: mint)
+            }.card()
+            Button { page = 1 } label: {
+                HStack { Text("اضبط ذيل الصدى والإيقاع والتفاصيل"); Spacer(); Image(systemName: "slider.horizontal.3") }
+                    .font(.subheadline).frame(minHeight: 48)
+            }
+        }
+    }
+    private func presetButton(_ name: String) -> some View {
+        let selected = audio.settings.preset == name
+        return Button { audio.choosePreset(name) } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text(name).font(.headline)
+                    Spacer(minLength: 2)
+                    if selected { Image(systemName: "checkmark.circle.fill") }
+                }
+                Text(SoundSettings.detail(name)).font(.caption).opacity(0.8)
+            }.frame(maxWidth: .infinity, minHeight: 70, alignment: .leading).padding(14)
+                .foregroundStyle(selected ? Color.black : Color.white)
+                .background(selected ? gold : surface, in: RoundedRectangle(cornerRadius: 18))
+        }.buttonStyle(.plain).accessibilityAddTraits(selected ? .isSelected : [])
+    }
+    private var effects: some View {
+        VStack(spacing: 18) {
+            VStack(spacing: 18) {
+                effectHeading("صدى المكان", icon: "building.columns", parameter: .reverb, fallback: 0.5)
+                Text("اترك فراغًا قبل الصدى لتبقى ضربة الريشة واضحة، ثم أطِل الذيل للمساحة الكبيرة.").font(.caption).foregroundStyle(.secondary)
+                control(.reverb); control(.decay); control(.predelay); control(.tone)
+            }.card()
+            VStack(spacing: 18) {
+                effectHeading("صدى الإيقاع", icon: "repeat", parameter: .delay, fallback: 0.35)
+                control(.delay); control(.delayTime); control(.feedback)
+                Button { audio.tapTempo() } label: {
+                    Label("اضغط مرتين على إيقاعك", systemImage: "hand.tap").frame(maxWidth: .infinity, minHeight: 44)
+                }.buttonStyle(.bordered)
+            }.card()
+            VStack(spacing: 18) {
+                effectHeading("الحركة", icon: "waveform.path", parameter: .modulation, fallback: 0.4)
+                Picker("طابع الحركة", selection: Binding(get: { audio.value(.flanger) > 0.5 ? 1 : 0 }, set: { audio.set(.flanger, Double($0)) })) {
+                    Text("Chorus • امتلاء").tag(0); Text("Flanger • تموّج").tag(1)
+                }.pickerStyle(.segmented)
+                control(.modulation); control(.modRate); control(.doubler)
+            }.card()
+            VStack(spacing: 18) {
+                heading("النبرة والامتلاء", icon: "slider.horizontal.3")
+                control(.low); control(.mid); control(.high); control(.compression); control(.makeup)
+                Text("التعويض يرفع مستوى الصوت بعد الضغط. إذا عملت حماية القمم باستمرار، خفّضه.").font(.caption).foregroundStyle(.secondary)
+            }.card()
+            if audio.mode == .voice {
+                Text("إعدادات الصوت البشري مستقلة. Auto‑Tune غير متاح في هذه النسخة.").font(.footnote).foregroundStyle(.secondary)
+            }
+        }
+    }
+    private var connection: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            heading("السماعة والميكروفون", icon: "headphones")
+            HStack {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(audio.route.isEmpty ? "اختر سماعتك" : audio.route).font(.headline)
+                    Text(audio.inputRoute.isEmpty ? "الميكروفون يظهر بعد البدء" : "الالتقاط: \(audio.inputRoute)").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer(); AudioOutputPicker().frame(width: 52, height: 52)
+            }
+            Text("البلوتوث يعمل مع ميكروفون الآيفون. اختر سماعتك من مركز التحكم قبل البدء. تأخير البلوتوث لا تزيله إعدادات المؤثرات.").font(.footnote).foregroundStyle(gold)
             Picker("الميكروفون", selection: $audio.selectedInput) {
-                Text("تلقائي حسب التوصيل").tag("")
+                Text("تلقائي").tag("")
                 ForEach(audio.inputs, id: \.uid) { Text($0.portName).tag($0.uid) }
             }
-            Toggle("استقرار أعلى • مخزن أكبر", isOn: $audio.stableBuffer)
+            Toggle("استقرار أعلى عند التقطيع", isOn: $audio.stableBuffer)
             if audio.sampleRate > 0 {
-                Text(String(format: "%.0f Hz  ·  المخزن الفعلي %.1f ms", audio.sampleRate, audio.bufferMS))
-                    .font(.caption.monospacedDigit())
-                Text(String(format: "تأخير الإدخال + الإخراج المبلّغ عنه: %.1f ms", audio.hardwareMS)).font(.caption)
-                Text("هذه قيم الجهاز، وليست قياسًا كاملًا للتأخير من الميكروفون إلى الأذن.").font(.caption).foregroundStyle(.secondary)
+                Text(String(format: "معدل العينة %.0f Hz • المخزن %.1f ms", audio.sampleRate, audio.bufferMS)).font(.caption.monospacedDigit())
+                Text(String(format: "تأخير الجهاز المبلّغ عنه %.1f ms", audio.hardwareMS)).font(.caption.monospacedDigit())
+                Text("ليس قياسًا كاملًا للتأخير من الميكروفون إلى الأذن.").font(.caption).foregroundStyle(.secondary)
             }
         }.card()
     }
     private var transport: some View {
         VStack(spacing: 10) {
-            HStack(spacing: 10) {
+            HStack(spacing: 12) {
                 Button { audio.toggle() } label: {
                     Label(audio.starting ? "إلغاء" : (audio.running ? "إيقاف" : "ابدأ العزف"), systemImage: audio.running ? "stop.fill" : "play.fill")
-                        .font(.title3.bold()).frame(maxWidth: .infinity, minHeight: 58)
+                        .font(.title3.bold()).frame(maxWidth: .infinity, minHeight: 56)
                         .foregroundStyle(Color.black).background(gold, in: RoundedRectangle(cornerRadius: 18))
                 }.buttonStyle(.plain)
                 Button { audio.set(.mute, audio.value(.mute) > 0.5 ? 0 : 1) } label: {
                     Label(audio.value(.mute) > 0.5 ? "مكتوم" : "كتم", systemImage: "speaker.slash.fill")
-                        .font(.headline).frame(minWidth: 92, minHeight: 58)
-                        .background(audio.value(.mute) > 0.5 ? Color.red.opacity(0.5) : surface, in: RoundedRectangle(cornerRadius: 18))
+                        .font(.headline).frame(minWidth: 92, minHeight: 56)
+                        .background(audio.value(.mute) > 0.5 ? Color.red.opacity(0.45) : surface, in: RoundedRectangle(cornerRadius: 18))
                 }.buttonStyle(.plain)
             }
-            Toggle("تجاوز المؤثرات • استمع للصوت الأصلي", isOn: Binding(get: { audio.value(.bypass) > 0.5 }, set: { audio.set(.bypass, $0 ? 1 : 0) }))
-                .font(.footnote)
+            Toggle("مقارنة بالصوت الأصلي", isOn: Binding(get: { audio.value(.bypass) > 0.5 }, set: { audio.set(.bypass, $0 ? 1 : 0) })).font(.footnote)
         }.padding(.horizontal, 20).padding(.vertical, 12).background(.ultraThinMaterial)
     }
-    private func sectionTitle(_ title: String, subtitle: String) -> some View {
-        HStack { Text(title).font(.headline); Spacer(); Text(subtitle).font(.caption).foregroundStyle(gold) }
+    private func heading(_ title: String, icon: String) -> some View {
+        Label(title, systemImage: icon).font(.headline).foregroundStyle(gold).frame(maxWidth: .infinity, alignment: .leading)
     }
-    private func control(_ p: Parameter) -> some View {
+    private func effectHeading(_ title: String, icon: String, parameter: Parameter, fallback: Double) -> some View {
+        Toggle(isOn: Binding(get: { audio.value(parameter) > 0.001 }, set: { enabled in
+            if enabled { audio.set(parameter, previousAmounts[parameter] ?? fallback) }
+            else { previousAmounts[parameter] = audio.value(parameter); audio.set(parameter, 0) }
+        })) { heading(title, icon: icon) }.accessibilityLabel("تفعيل \(title)")
+    }
+    private func control(_ p: Parameter, accent: Color = gold) -> some View {
         VStack(spacing: 4) {
             HStack {
-                Text(p.label).font(.subheadline)
-                Spacer()
-                Text(p.text(audio.value(p))).font(.subheadline.monospacedDigit()).foregroundStyle(gold).environment(\.layoutDirection, .leftToRight)
+                Text(p.label).font(.subheadline); Spacer()
+                Text(p.text(audio.value(p))).font(.subheadline.monospacedDigit().bold()).foregroundStyle(accent).environment(\.layoutDirection, .leftToRight)
             }
             Slider(value: Binding(get: { audio.value(p) }, set: { audio.set(p, $0) }), in: p.range)
-                .frame(minHeight: 44).accessibilityLabel(p.label).accessibilityValue(p.text(audio.value(p)))
+                .tint(accent).frame(minHeight: 44).accessibilityLabel(p.label).accessibilityValue(p.text(audio.value(p)))
         }
     }
     private func meter(_ label: String, value: Float) -> some View {
-        let normalized = Double(max(0, min(1, (20 * log10(max(value, 0.00001)) + 60) / 60)))
-        return HStack {
-            Text(label).font(.caption).frame(width: 70, alignment: .leading)
-            ProgressView(value: normalized).tint(value > 0.9 ? .red : gold)
-            Text(value > 0.9 ? "عالٍ" : "").font(.caption).foregroundStyle(.red).frame(width: 30)
-        }.accessibilityElement(children: .ignore).accessibilityLabel(label).accessibilityValue(String(format: "%.0f ديسيبل", 20 * log10(max(value, 0.00001))))
+        let decibels = 20 * log10(max(value, 0.00001))
+        let normalized = Double(max(0, min(1, (decibels + 60) / 60)))
+        return HStack(spacing: 10) {
+            Text(label).font(.caption).frame(width: 42, alignment: .leading)
+            ProgressView(value: normalized).tint(value > 0.9 ? .orange : mint)
+            Text(value < 0.0001 ? "—" : String(format: "%.0f dB", decibels)).font(.caption.monospacedDigit()).foregroundStyle(.secondary).frame(width: 58).environment(\.layoutDirection, .leftToRight)
+        }.accessibilityElement(children: .ignore).accessibilityLabel(label).accessibilityValue(String(format: "%.0f ديسيبل", decibels))
     }
     private var help: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    Text("جاهز للعزف في ثلاث خطوات").font(.title.bold())
-                    Text("١. وصّل سماعتك بالبلوتوث من إعدادات الآيفون واخترها من مركز التحكم، أو استخدم سماعة سلكية أو واجهة USB. تستطيع تغيير مخرج الصوت من زر اختيار السماعة.")
-                    Text("٢. اضغط ابدأ واسمح بالميكروفون. اختر الميكروفون من قسم التوصيل إذا كانت سماعتك تحتوي على ميكروفون بعيد عن العود.")
-                    Text("٣. اختر لون الصوت، واضبط مستوى الخروج تدريجيًا. استخدم واجهة العزف للوصول السريع للألوان والكتم.")
-                    Text("البلوتوث مدعوم بجودة الموسيقى A2DP، مع ميكروفون الآيفون افتراضيًا؛ ميكروفون سماعة البلوتوث غير مستخدم. تأخير البلوتوث قد يكون واضحًا أثناء العزف، والسلك مناسب عندما تحتاج أقل تأخير.")
-                    Text("إذا سمعت تقطيعًا، أوقف الصوت وفعّل استقرار أعلى ثم ابدأ مجددًا. بعد مكالمة أو تغيير توصيل السماعة، أعد التشغيل يدويًا.")
-                    Text("الإعدادات تُحفظ لكل من العود والصوت البشري. مشكل هو مزيج صدى وحركة وتوسيع. Doubler يضيف نسختين متحركتين زمنيًا؛ ليس تصحيحًا للنغمة.")
-                    Text("عند استخدام واجهة صوت متصلة بمكبر خارجي، أبعد الميكروفون عن المكبر لتجنب الصفير. ابدأ بصوت منخفض.")
+                    Text("اصنع مساحتك الصوتية").font(.title.bold())
+                    Text("١. وصّل سماعتك بالبلوتوث واخترها من مركز التحكم. قرّب ميكروفون الآيفون من العود، ثم اضغط ابدأ واسمح بالميكروفون.")
+                    Text("٢. جرّب قاعة كبيرة للصدى القوي، أو فخم / ثقيل للامتلاء. ارفع تقوية الالتقاط تدريجيًا بزر +6 dB إذا كان الصوت ضعيفًا.")
+                    Text("٣. قوة المؤثرات تغيّر كمية الصدى والحركة معًا. من صفحة المؤثرات اضبط طول الذيل وفاصل البداية، واضغط مرتين لضبط الصدى على إيقاعك.")
+                    Text("مؤشر الالتقاط يقيس الصوت بعد التقوية الرقمية. التقوية ترفع الضجيج أيضًا ولا تصلح تشوّهًا حدث في الميكروفون. قرّب الهاتف واستخدم مستوى مناسبًا.")
+                    Text("حماية القمم تخفض المستوى عند الحاجة. ابدأ بخروج منخفض، وأبعد الميكروفون عن أي مكبر صوت خارجي لتجنب الصفير.")
+                    Text("بعد مكالمة أو تغيير السماعة، اضغط ابدأ مجددًا. Bluetooth A2DP يضيف تأخيرًا، والسلك أسرع للعزف المتزامن. ميكروفون سماعة البلوتوث غير مستخدم.")
+                    Text("تحفظ الإعدادات لكل وضع، ويمكن حفظ لونك المفضل. Auto‑Tune غير متاح. زر المقارنة يتجاوز المؤثرات مع بقاء كسب الإدخال والخروج والكتم وحماية القمم.")
                 }.padding(24)
-            }.toolbar { Button("تم") { showHelp = false } }.navigationTitle("طريقة الاستخدام")
+            }.toolbar { Button("تم") { showHelp = false } }.navigationTitle("دليل العزف")
         }.environment(\.layoutDirection, .rightToLeft)
     }
 }
 
 private struct AudioOutputPicker: UIViewRepresentable {
-    func makeUIView(context: Context) -> MPVolumeView {
-        let view = MPVolumeView(frame: .zero)
-        view.showsVolumeSlider = false
-        view.showsRouteButton = true
-        view.tintColor = UIColor(red: 0.89, green: 0.72, blue: 0.43, alpha: 1)
+    func makeUIView(context: Context) -> AVRoutePickerView {
+        let view = AVRoutePickerView(frame: .zero)
+        view.prioritizesVideoDevices = false
+        view.tintColor = UIColor(red: 0.91, green: 0.75, blue: 0.47, alpha: 1)
+        view.activeTintColor = UIColor(red: 0.39, green: 0.83, blue: 0.74, alpha: 1)
         return view
     }
-    func updateUIView(_ uiView: MPVolumeView, context: Context) {}
+    func updateUIView(_ uiView: AVRoutePickerView, context: Context) {}
 }
 
 private extension View {

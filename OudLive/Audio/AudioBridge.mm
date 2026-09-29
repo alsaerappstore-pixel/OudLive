@@ -92,5 +92,6 @@ static OSStatus render(void *context, AudioUnitRenderActionFlags *flags,
 - (void)setParameter:(NSInteger)parameter value:(float)value { _state->dsp.set((int)parameter,value); }
 - (float)inputPeak { return _state->dsp.inputPeak.load(std::memory_order_relaxed); }
 - (float)outputPeak { return _state->dsp.outputPeak.load(std::memory_order_relaxed); }
+- (float)gainReduction { return _state->dsp.gainReduction.load(std::memory_order_relaxed); }
 - (int)renderError { return _state->error.load(std::memory_order_relaxed); }
 @end

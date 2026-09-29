@@ -21,6 +21,10 @@ jobs:
           build/dsp-tests | tee build/dsp-test-results.txt
       - name: Build and package arm64 iPhone app
         run: bash scripts/build-ipa.sh
+      - name: Test preset persistence and migration
+        run: |
+          swiftc OudLive/Settings.swift Tests/SettingsTests/main.swift -o build/settings-tests
+          build/settings-tests | tee build/settings-test-results.txt
       - name: Upload IPA for Sideloadly
         uses: actions/upload-artifact@v4
         with:
@@ -38,6 +42,19 @@ jobs:
           path: |
             build/build.log
             build/dsp-test-results.txt
+            build/settings-test-results.txt
             build/Build-*.xcresult
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Launch app and capture three simulator screens
+        run: bash scripts/simulator-smoke.sh
+      - name: Upload simulator screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: OudLive-interface-preview
+          path: |
+            build/*-preview.png
+            build/simulator.log
           if-no-files-found: ignore
           retention-days: 14
