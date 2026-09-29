@@ -1,4 +1,5 @@
 import SwiftUI
+import MediaPlayer
 
 private let gold = Color(red: 0.89, green: 0.72, blue: 0.43)
 private let surface = Color(red: 0.10, green: 0.13, blue: 0.14)
@@ -89,6 +90,12 @@ struct ContentView: View {
             }
             meter("الميكروفون", value: audio.inputLevel)
             meter("الخروج", value: audio.outputLevel)
+            HStack {
+                Label("اختيار السماعة", systemImage: "headphones")
+                Spacer()
+                AudioOutputPicker().frame(width: 60, height: 44)
+                    .accessibilityLabel("اختيار مخرج الصوت")
+            }.font(.subheadline)
             Text(audio.message).font(.footnote).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }.card()
     }
@@ -96,6 +103,11 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 12) {
             sectionTitle("توصيل الصوت", subtitle: "AUDIO")
             Text(audio.route.isEmpty ? "لا يوجد خرج متصل" : audio.route).font(.subheadline)
+            if !audio.inputRoute.isEmpty { Text("الميكروفون الفعلي: \(audio.inputRoute)").font(.caption) }
+            if audio.bluetoothOutput {
+                Text("البلوتوث متصل. التأخير أعلى من السلك، وقد تلاحظ فرقًا بين العزف والصوت المسموع.")
+                    .font(.footnote).foregroundStyle(gold)
+            }
             Picker("الميكروفون", selection: $audio.selectedInput) {
                 Text("تلقائي حسب التوصيل").tag("")
                 ForEach(audio.inputs, id: \.uid) { Text($0.portName).tag($0.uid) }
@@ -154,9 +166,10 @@ struct ContentView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     Text("جاهز للعزف في ثلاث خطوات").font(.title.bold())
-                    Text("١. وصّل سماعة سلكية أو واجهة صوت USB إلى الآيفون. لا تُستخدم سماعة Bluetooth للمراقبة المباشرة في هذا الإصدار.")
+                    Text("١. وصّل سماعتك بالبلوتوث من إعدادات الآيفون واخترها من مركز التحكم، أو استخدم سماعة سلكية أو واجهة USB. تستطيع تغيير مخرج الصوت من زر اختيار السماعة.")
                     Text("٢. اضغط ابدأ واسمح بالميكروفون. اختر الميكروفون من قسم التوصيل إذا كانت سماعتك تحتوي على ميكروفون بعيد عن العود.")
                     Text("٣. اختر لون الصوت، واضبط مستوى الخروج تدريجيًا. استخدم واجهة العزف للوصول السريع للألوان والكتم.")
+                    Text("البلوتوث مدعوم بجودة الموسيقى A2DP، مع ميكروفون الآيفون افتراضيًا؛ ميكروفون سماعة البلوتوث غير مستخدم. تأخير البلوتوث قد يكون واضحًا أثناء العزف، والسلك مناسب عندما تحتاج أقل تأخير.")
                     Text("إذا سمعت تقطيعًا، أوقف الصوت وفعّل استقرار أعلى ثم ابدأ مجددًا. بعد مكالمة أو تغيير توصيل السماعة، أعد التشغيل يدويًا.")
                     Text("الإعدادات تُحفظ لكل من العود والصوت البشري. مشكل هو مزيج صدى وحركة وتوسيع. Doubler يضيف نسختين متحركتين زمنيًا؛ ليس تصحيحًا للنغمة.")
                     Text("عند استخدام واجهة صوت متصلة بمكبر خارجي، أبعد الميكروفون عن المكبر لتجنب الصفير. ابدأ بصوت منخفض.")
@@ -164,6 +177,17 @@ struct ContentView: View {
             }.toolbar { Button("تم") { showHelp = false } }.navigationTitle("طريقة الاستخدام")
         }.environment(\.layoutDirection, .rightToLeft)
     }
+}
+
+private struct AudioOutputPicker: UIViewRepresentable {
+    func makeUIView(context: Context) -> MPVolumeView {
+        let view = MPVolumeView(frame: .zero)
+        view.showsVolumeSlider = false
+        view.showsRouteButton = true
+        view.tintColor = UIColor(red: 0.89, green: 0.72, blue: 0.43, alpha: 1)
+        return view
+    }
+    func updateUIView(_ uiView: MPVolumeView, context: Context) {}
 }
 
 private extension View {

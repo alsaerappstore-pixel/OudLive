@@ -8,7 +8,9 @@ final class AudioModel: ObservableObject {
     @Published private(set) var starting = false
     @Published private(set) var settings = SoundSettings()
     @Published private(set) var mode = SoundMode.oud
-    @Published var message = "وصّل سماعة سلكية أو واجهة USB، ثم ابدأ."
+    @Published var message = "وصّل سماعتك بالبلوتوث أو بالسلك، ثم ابدأ."
+    @Published private(set) var bluetoothOutput = false
+    @Published private(set) var inputRoute = ""
     @Published private(set) var inputLevel: Float = 0
     @Published private(set) var outputLevel: Float = 0
     @Published private(set) var route = "لم يبدأ الصوت"
@@ -65,7 +67,7 @@ final class AudioModel: ObservableObject {
     }
     private var safeOutput: Bool {
         !session.currentRoute.outputs.isEmpty && session.currentRoute.outputs.allSatisfy {
-            [AVAudioSession.Port.headphones, .usbAudio, .lineOut].contains($0.portType)
+            [AVAudioSession.Port.headphones, .usbAudio, .lineOut, .bluetoothA2DP].contains($0.portType)
         }
     }
     private var routeKey: String {
@@ -112,16 +114,22 @@ final class AudioModel: ObservableObject {
     }
     private func start() {
         do {
-            try session.setCategory(.playAndRecord, mode: .measurement, options: [])
+            // A2DP preserves music-quality output while recording the phone/USB mic.
+            // Do not enable HFP: that would switch headphones to call-quality audio.
+            try session.setCategory(.playAndRecord, mode: .measurement, options: [.allowBluetoothA2DP])
             try session.setPreferredSampleRate(48000)
             try session.setPreferredIOBufferDuration((stableBuffer ? 256.0 : 128.0) / 48000.0)
             try session.setActive(true)
             if !selectedInput.isEmpty, let port = session.availableInputs?.first(where: { $0.uid == selectedInput }) {
                 try session.setPreferredInput(port)
-            } else if selectedInput.isEmpty { try session.setPreferredInput(nil) }
+            } else {
+                let usingBluetooth = session.currentRoute.outputs.contains { $0.portType == .bluetoothA2DP }
+                let phoneMic = session.availableInputs?.first { $0.portType == .builtInMic }
+                try session.setPreferredInput(usingBluetooth ? phoneMic : nil)
+            }
             refreshRoute()
             guard safeOutput else {
-                stop(); message = "وصّل سماعة سلكية أو واجهة USB. مكبر الآيفون وBluetooth غير مفعّلين للمراقبة المباشرة لتجنب الصفير والتأخير."
+                stop(); message = "اختر سماعة Bluetooth من مركز التحكم، أو وصّل سماعة سلكية أو USB، ثم اضغط ابدأ. مكبر الآيفون غير مفعّل لتجنب الصفير."
                 return
             }
             guard session.isInputAvailable else { stop(); message = "لا يوجد ميكروفون متاح."; return }
@@ -129,7 +137,9 @@ final class AudioModel: ObservableObject {
             try bridge.start(withSampleRate: session.sampleRate)
             activeRouteKey = routeKey
             running = true; UIApplication.shared.isIdleTimerDisabled = true
-            message = "الصوت مباشر • ابدأ بمستوى منخفض وارفعه تدريجيًا."
+            message = bluetoothOutput
+                ? "الصوت إلى سماعة البلوتوث • الالتقاط من \(inputRoute). يوجد تأخير من البلوتوث؛ السلك أسرع للعزف."
+                : "الصوت مباشر • ابدأ بمستوى منخفض وارفعه تدريجيًا."
         } catch {
             stop(); message = error.localizedDescription
         }
@@ -142,6 +152,8 @@ final class AudioModel: ObservableObject {
     private func refreshRoute() {
         inputs = session.availableInputs ?? []
         route = session.currentRoute.outputs.map(\.portName).joined(separator: "، ")
+        inputRoute = session.currentRoute.inputs.map(\.portName).joined(separator: "، ")
+        bluetoothOutput = session.currentRoute.outputs.contains { $0.portType == .bluetoothA2DP }
         sampleRate = session.sampleRate; bufferMS = session.ioBufferDuration * 1000
         hardwareMS = (session.inputLatency + session.outputLatency) * 1000
     }
