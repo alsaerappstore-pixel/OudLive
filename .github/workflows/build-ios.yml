@@ -1,0 +1,43 @@
+name: Build iPhone IPA
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show toolchain
+        run: xcodebuild -version
+      - name: Test audio DSP with sanitizers
+        run: |
+          mkdir -p build
+          clang++ -std=c++17 -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer Tests/dsp_tests.cpp -o build/dsp-tests
+          build/dsp-tests | tee build/dsp-test-results.txt
+      - name: Build and package arm64 iPhone app
+        run: bash scripts/build-ipa.sh
+      - name: Upload IPA for Sideloadly
+        uses: actions/upload-artifact@v4
+        with:
+          name: OudLive-iPhone-IPA
+          path: |
+            build/OudLive-unsigned.ipa
+            build/OudLive-unsigned.ipa.sha256
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: OudLive-build-diagnostics
+          path: |
+            build/build.log
+            build/dsp-test-results.txt
+            build/Build-*.xcresult
+          if-no-files-found: ignore
+          retention-days: 14
