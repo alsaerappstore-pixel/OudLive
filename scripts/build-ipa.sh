@@ -10,7 +10,7 @@ xcodebuild -project OudLive.xcodeproj -scheme OudLive \
   build 2>&1 | tee build/build.log
 APP="$PWD/build/DerivedData/Build/Products/Release-iphoneos/OudLive.app"
 test -x "$APP/OudLive"
-xcrun lipo -verify_arch arm64 "$APP/OudLive"
+xcrun lipo "$APP/OudLive" -verify_arch arm64
 /usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$APP/Info.plist"
 # Package from a fresh temporary folder so failed/older builds cannot contaminate it.
 STAGE=$(mktemp -d "$PWD/build/package.XXXXXX")
