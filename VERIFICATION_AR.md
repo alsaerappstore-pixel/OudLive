@@ -11,7 +11,7 @@
 - نجح تجميع Swift وObjective-C++ باستخدام Xcode 16.4 وiPhoneOS 18.5 SDK، والحد الأدنى iOS 16.
 - نجحت الاختبارات الـ11 مع AddressSanitizer وUndefinedBehaviorSanitizer.
 - أُنتج `OudLive-unsigned.ipa` واجتاز فحص arm64 وiPhoneOS وبنية ZIP.
-- [البناء الناجح](https://github.com/alsaerappstore-pixel/OudLive/actions/runs/36586931107) للنسخة `880327091c0b7a38d3df9819821fa4177d5354d7`.
+- [البناء الناجح](https://github.com/alsaerappstore-pixel/OudLive/actions/runs/36600882735) للنسخة `b6dea7ef5c48534e07beb435e1c7310b20526fcb`.
 
 ## لم يُنفّذ بعد
 
@@ -36,3 +36,7 @@ PASS: bounded output, NaN rejection, mute at 48000 Hz
 PASS: bounded output, NaN rejection, mute at 96000 Hz
 All DSP checks passed. Device latency and iOS integration still require hardware testing.
 ```
+
+## تحديث 1.1 — Bluetooth
+
+نجح بناء نسخة A2DP وظهور اسم الميكروفون وزر اختيار السماعة. نجحت الاختبارات الـ11 وفحص IPA. أكد المستخدم عمل 1.0 على USB؛ تجربة Bluetooth في 1.1 ما زالت مطلوبة. يوجد تحذير إهمال من SDK لزر MPVolumeView؛ لا يمنع البناء.

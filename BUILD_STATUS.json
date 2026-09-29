@@ -1,18 +1,26 @@
 {
   "date": "2026-09-29",
   "repository": "https://github.com/alsaerappstore-pixel/OudLive",
-  "commit": "880327091c0b7a38d3df9819821fa4177d5354d7",
-  "workflow_run": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/36586931107",
+  "commit": "b6dea7ef5c48534e07beb435e1c7310b20526fcb",
+  "workflow_run": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/36600882735",
   "result": "success",
   "toolchain": "Xcode 16.4 / iPhoneOS 18.5 SDK",
   "deployment_target": "iOS 16.0",
   "architecture": "arm64",
   "ipa_file": "OudLive-unsigned.ipa",
-  "artifact_url": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/36586931107/artifacts/11041863432",
-  "artifact_zip_sha256": "7fc8d1ff570466b6962ecdf5c11c3748d8c04a35cd49b7d254889cc3c33df014",
+  "artifact_url": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/36600882735/artifacts/11048518606",
+  "artifact_zip_sha256": "8833ae5debebf40a64f31778d0b036e97f3368c91dbe88e826bc97d01a0563c5",
   "dsp_checks_passed": 11,
-  "sanitizers": ["address", "undefined"],
+  "sanitizers": [
+    "address",
+    "undefined"
+  ],
   "ipa_structure_verified": true,
   "signed": false,
-  "physical_iphone_tested": false
+  "physical_iphone_tested": false,
+  "version": "1.1.0",
+  "build_number": 2,
+  "bluetooth_a2dp_enabled": true,
+  "bluetooth_device_tested": false,
+  "previous_version_user_report": "User confirmed v1.0 installed and working via USB."
 }
