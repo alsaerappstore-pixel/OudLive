@@ -1,13 +1,15 @@
 {
-  "version": "2.1.0",
-  "build_number": 4,
-  "commit": "e4175a3a468f66f6eaa6cc2708ef77dcbddb3cde",
-  "workflow_run": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/36691685070",
-  "artifact_url": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/36691685070/artifacts/11085911985",
+  "version": "2.2.0",
+  "build_number": 5,
+  "commit": "1598d2483c94649d057547ca5e350b20684217d3",
+  "workflow_run": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/36693725594",
+  "artifact_url": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/36693725594/artifacts/11086524501",
   "result": "success",
   "dsp_checks_passed": 17,
-  "settings_tested": true,
-  "signed": false,
+  "recording_samples_tested": true,
+  "movie_export_tested": true,
+  "camera_device_tested": false,
   "bluetooth_device_tested": false,
-  "simulator": "الفحص الآلي قيد التشغيل عند تجهيز التسليم؛ لم تُعتمد لقطات واجهة هذا الإصدار بصريًا"
+  "signed": false,
+  "simulator": "بناء الجهاز والاختبارات اكتملت؛ فحص لقطات المحاكي لا يزال جاريًا عند تجهيز التسليم، ولم يُعتمد بصريًا"
 }
