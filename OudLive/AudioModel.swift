@@ -15,6 +15,7 @@ final class AudioModel: ObservableObject {
     private var cameraURL: URL?
     private var recordingDate: Date?
     private var recordingGeneration = 0
+    private var exportBackground = UIBackgroundTaskIdentifier.invalid
     @Published private(set) var namedSounds: [NamedSound] = []
     @Published private(set) var running = false
     @Published private(set) var starting = false
@@ -315,13 +316,17 @@ extension AudioModel {
             message = audioError?.localizedDescription ?? "حُفظ التسجيل الصوتي بنفس المؤثرات. افتح التسجيل أو شاركه من قائمة تسجيلاتي."
             return
         }
-        let background = UIApplication.shared.beginBackgroundTask(withName: "FinishRecording")
+        exportBackground = UIApplication.shared.beginBackgroundTask(withName: "FinishRecording") { [weak self] in
+            guard let self else { return }
+            if self.exportBackground != .invalid { UIApplication.shared.endBackgroundTask(self.exportBackground); self.exportBackground = .invalid }
+            self.message = "افتح التطبيق لإكمال تجهيز الفيديو. النسخة الصوتية محفوظة."
+        }
         message = "جارٍ تجهيز الفيديو بالصوت المعالج…"
         camera.finish { [weak self] result in
             Task { @MainActor in
-                defer { if background != .invalid { UIApplication.shared.endBackgroundTask(background) } }
                 guard let self else { return }
                 defer {
+                    if self.exportBackground != .invalid { UIApplication.shared.endBackgroundTask(self.exportBackground); self.exportBackground = .invalid }
                     self.recordingFinishing = false; self.refreshRecordings()
                     try? FileManager.default.removeItem(at: videoURL)
                 }
