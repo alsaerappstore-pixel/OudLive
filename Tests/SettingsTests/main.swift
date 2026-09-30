@@ -20,3 +20,21 @@ for mode in SoundMode.allCases {
 let bad = try JSONDecoder().decode(SoundSettings.self, from: Data("{\"preset\":\"bad\",\"values\":[0]}".utf8))
 precondition(!bad.valid)
 print("PASS: v1 migration preserves levels, v2 persistence round-trips, presets are distinct and bounded, invalid settings rejected")
+
+var switched = SoundSettings.preset("مشكل", mode: .oud)
+for effect in Effect.allCases {
+    let original = switched.values
+    switched.disabledEffects.insert(effect)
+    let decoded = try JSONDecoder().decode(SoundSettings.self, from: JSONEncoder().encode(switched))
+    precondition(!decoded.enabled(effect) && decoded.values == original)
+    for p in effect.parameters where [.reverb, .delay, .modulation, .doubler, .low, .mid, .high, .compression, .makeup].contains(p) {
+        precondition(decoded.effective(p) == 0)
+    }
+    switched.disabledEffects.remove(effect)
+    precondition(switched.values == original)
+}
+precondition(old.disabledEffects.isEmpty)
+let named = NamedSound(name: "تجربة", mode: .voice, settings: switched)
+let restored = try JSONDecoder().decode(NamedSound.self, from: JSONEncoder().encode(named))
+precondition(restored.id == named.id && restored.mode == .voice && restored.settings.values == switched.values)
+print("PASS: independent switches preserve settings, bypass correctly and persist; named sounds round-trip")

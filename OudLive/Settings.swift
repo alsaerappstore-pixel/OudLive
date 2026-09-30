@@ -49,6 +49,29 @@ enum Parameter: Int, CaseIterable {
         default: return ""
         }
     }
+    var explanation: String {
+        switch self {
+        case .input: return "يرفع صوت الميكروفون رقميًا؛ يرفع الضجيج أيضًا. قرّب الهاتف أولًا."
+        case .output: return "يضبط مستوى الصوت النهائي الذي تسمعه في السماعة."
+        case .low: return "يزيد أو يقلل عمق الصوت ودفء الأوتار الغليظة."
+        case .mid: return "يبرز جسم النغمة وحضور العود وسط الصوت."
+        case .high: return "يتحكم بلمعان الصوت ووضوح ضربة الريشة."
+        case .compression: return "يقلّل الفرق بين الضربات القوية والهادئة ليصبح الأداء متوازنًا."
+        case .reverb: return "يمزج رنين قاعة مع صوتك؛ زيادته تجعل المساحة أوضح."
+        case .delay: return "يضيف نسخًا متكررة من النغمة بعد العزف."
+        case .delayTime: return "يحدد الوقت الفاصل بين تكرارات النغمة."
+        case .feedback: return "يزيد عدد التكرارات ومدة بقائها قبل أن تتلاشى."
+        case .modulation: return "يحدد مقدار الامتلاء أو التموج حسب طابع الحركة المختار."
+        case .modRate: return "يحدد سرعة تحرك طبقات الكورس أو تموّج الفلانجر."
+        case .doubler: return "يضيف طبقة قصيرة متأخرة لإحساس قريب من عزف عودين معًا."
+        case .decay: return "يحدد مدة بقاء رنين المكان بعد توقف العزف."
+        case .predelay: return "يترك فراغًا قبل الرنين لتظل بداية النغمة واضحة."
+        case .tone: return "يجعل رنين المكان داكنًا ودافئًا أو لامعًا ومشرقًا."
+        case .makeup: return "يعوّض انخفاض المستوى بعد الضغط؛ خفّضه إذا زاد عمل حماية القمم."
+        case .intensity: return "يزيد أو يقلل كمية المؤثرات المكانية والحركة معًا."
+        default: return ""
+        }
+    }
     func text(_ value: Double) -> String {
         switch self {
         case .input, .output, .low, .mid, .high, .makeup: return String(format: "%.0f dB", value)
@@ -60,15 +83,41 @@ enum Parameter: Int, CaseIterable {
     }
 }
 
+enum Effect: String, Codable, CaseIterable {
+    case reverb, delay, motion, doubler, eq, compressor
+    var parameters: [Parameter] {
+        switch self {
+        case .reverb: return [.reverb, .decay, .predelay, .tone]
+        case .delay: return [.delay, .delayTime, .feedback]
+        case .motion: return [.modulation, .modRate, .flanger]
+        case .doubler: return [.doubler]
+        case .eq: return [.low, .mid, .high]
+        case .compressor: return [.compression, .makeup]
+        }
+    }
+}
+
 struct SoundSettings: Codable {
+    var disabledEffects: Set<Effect> = []
+    func enabled(_ effect: Effect) -> Bool { !disabledEffects.contains(effect) }
+    func effective(_ p: Parameter) -> Double {
+        for effect in disabledEffects where effect.parameters.contains(p) {
+            switch p {
+            case .reverb, .delay, .modulation, .doubler, .low, .mid, .high, .compression, .makeup: return 0
+            default: break
+            }
+        }
+        return self[p]
+    }
     var preset = "طبيعي"
     var values: [Double] = [6,-9,0,0,0,0.25,0.24,0.12,320,0.32,0,0.7,0,0,0,0,2.4,22,0.5,4,1]
     init() {}
-    private enum CodingKeys: String, CodingKey { case preset, values }
+    private enum CodingKeys: String, CodingKey { case preset, values, disabledEffects }
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         preset = try container.decode(String.self, forKey: .preset)
         values = try container.decode([Double].self, forKey: .values)
+        disabledEffects = try container.decodeIfPresent(Set<Effect>.self, forKey: .disabledEffects) ?? []
         // Preserve all v1 user settings; append only the new v2 controls.
         if values.count == 16 { values += [2.4,22,0.5,4,1] }
     }
@@ -98,6 +147,16 @@ struct SoundSettings: Codable {
             s[.low] = 2; s[.high] = 2; s[.reverb] = 0.5; s[.delay] = 0.42
             s[.delayTime] = 375; s[.modulation] = 0.36; s[.doubler] = 0.3; s[.compression] = 0.35
             s[.feedback] = 0.48; s[.decay] = 3.6
+        case "تقاسيم":
+            s[.reverb] = 0.38; s[.delay] = 0.08; s[.decay] = 3.2; s[.predelay] = 45; s[.compression] = 0.15
+        case "طرب دافئ":
+            s[.low] = 3; s[.high] = -3; s[.tone] = 0.2; s[.reverb] = 0.46; s[.decay] = 3.8
+        case "ريشة واضحة":
+            s[.low] = -2; s[.mid] = 3; s[.high] = 2; s[.predelay] = 60; s[.reverb] = 0.23; s[.delay] = 0.05
+        case "مسرح":
+            s[.compression] = 0.45; s[.reverb] = 0.5; s[.decay] = 3; s[.delay] = 0.23; s[.doubler] = 0.18
+        case "مساحة واسعة":
+            s[.reverb] = 0.6; s[.decay] = 4.8; s[.doubler] = 0.45; s[.modulation] = 0.15; s[.delay] = 0.18
         case "قاعة كبيرة":
             s[.reverb] = 0.78; s[.decay] = 6; s[.predelay] = 48
             s[.delay] = 0.3; s[.delayTime] = 470; s[.feedback] = 0.48; s[.doubler] = 0.25
@@ -109,9 +168,14 @@ struct SoundSettings: Codable {
         }
         return s
     }
-    static let names = ["طبيعي", "كلاسيكي", "فخم / ثقيل", "حاد", "مشكل", "قاعة كبيرة"]
+    static let names = ["طبيعي", "كلاسيكي", "فخم / ثقيل", "حاد", "مشكل", "قاعة كبيرة", "تقاسيم", "طرب دافئ", "ريشة واضحة", "مسرح", "مساحة واسعة"]
     static func detail(_ name: String) -> String {
         switch name {
+        case "تقاسيم": return "تفاصيل وزخارف حرة"
+        case "طرب دافئ": return "نبرة ناعمة ورنين داكن"
+        case "ريشة واضحة": return "بداية بارزة ومساحة خفيفة"
+        case "مسرح": return "توازن وحضور للعزف"
+        case "مساحة واسعة": return "اتساع وطبقات متحركة"
         case "طبيعي": return "واضح وقريب"
         case "كلاسيكي": return "دفء ومساحة ناعمة"
         case "فخم / ثقيل": return "عمق واتساع"
@@ -129,4 +193,11 @@ struct SavedSettings: Codable {
     var mode = SoundMode.oud
     var stableBuffer = false
     var valid: Bool { oud.valid && voice.valid }
+}
+
+struct NamedSound: Codable, Identifiable {
+    var id = UUID()
+    var name: String
+    var mode: SoundMode
+    var settings: SoundSettings
 }

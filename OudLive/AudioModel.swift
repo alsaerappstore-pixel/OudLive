@@ -4,6 +4,7 @@ import UIKit
 
 @MainActor
 final class AudioModel: ObservableObject {
+    @Published private(set) var namedSounds: [NamedSound] = []
     @Published private(set) var running = false
     @Published private(set) var starting = false
     @Published private(set) var settings = SoundSettings()
@@ -37,6 +38,10 @@ final class AudioModel: ObservableObject {
         if let data = UserDefaults.standard.data(forKey: storageKey),
            let stored = try? JSONDecoder().decode(SavedSettings.self, from: data), stored.valid {
             saved = stored
+        }
+        if let data = UserDefaults.standard.data(forKey: "OudLive.namedSounds.v1"),
+           let sounds = try? JSONDecoder().decode([NamedSound].self, from: data) {
+            namedSounds = sounds.filter { $0.settings.valid }
         }
         mode = saved.mode; settings = mode == .oud ? saved.oud : saved.voice
         // Do not restore mute/bypass implicitly; the engine is always stopped on launch.
@@ -103,7 +108,28 @@ final class AudioModel: ObservableObject {
     func set(_ parameter: Parameter, _ value: Double) {
         settings[parameter] = value
         if parameter != .mute && parameter != .bypass && parameter != .output && parameter != .input { settings.preset = "مخصص" }
-        bridge.setParameter(parameter.rawValue, value: Float(settings[parameter])); save()
+        bridge.setParameter(parameter.rawValue, value: Float(settings.effective(parameter))); save()
+    }
+    func setEnabled(_ effect: Effect, _ enabled: Bool) {
+        if enabled { settings.disabledEffects.remove(effect) }
+        else { settings.disabledEffects.insert(effect) }
+        settings.preset = "مخصص"; apply(); save()
+    }
+    func saveSound(_ name: String) {
+        let trimmed = String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(40))
+        guard !trimmed.isEmpty else { return }
+        namedSounds.append(NamedSound(name: trimmed, mode: mode, settings: settings))
+        persistSounds(); message = "حُفظ الصوت باسم \(trimmed)."
+    }
+    func loadSound(_ sound: NamedSound) {
+        let input = settings[.input], output = settings[.output], mute = settings[.mute]
+        save(); mode = sound.mode; settings = sound.settings; settings.preset = sound.name
+        settings[.input] = input; settings[.output] = output; settings[.mute] = mute; settings[.bypass] = 0
+        apply(); save()
+    }
+    func deleteSound(_ id: UUID) { namedSounds.removeAll { $0.id == id }; persistSounds() }
+    private func persistSounds() {
+        if let data = try? JSONEncoder().encode(namedSounds) { UserDefaults.standard.set(data, forKey: "OudLive.namedSounds.v1") }
     }
     func choosePreset(_ name: String) {
         let input = settings[.input], output = settings[.output], mute = settings[.mute]
@@ -119,7 +145,7 @@ final class AudioModel: ObservableObject {
         apply(); save()
     }
     private func apply() {
-        for p in Parameter.allCases { bridge.setParameter(p.rawValue, value: Float(settings[p])) }
+        for p in Parameter.allCases { bridge.setParameter(p.rawValue, value: Float(settings.effective(p))) }
     }
     private func save() {
         if mode == .oud { saved.oud = settings } else { saved.voice = settings }

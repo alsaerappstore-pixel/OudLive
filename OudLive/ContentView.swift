@@ -10,7 +10,8 @@ struct ContentView: View {
     @ObservedObject var audio: AudioModel
     @State private var page = 0
     @State private var showHelp = false
-    @State private var previousAmounts: [Parameter: Double] = [:]
+    @State private var showSave = false
+    @State private var soundName = ""
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -22,7 +23,7 @@ struct ContentView: View {
                 if page == 0 { performance }
                 if page == 1 { effects }
                 if page == 2 { connection }
-                Text("عود لايف 2.0  •  معالجة محلية بلا تسجيل")
+                Text("عود لايف 2.1  •  معالجة محلية بلا تسجيل")
                     .font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity)
             }.padding(20).frame(maxWidth: 740).frame(maxWidth: .infinity)
         }
@@ -30,6 +31,11 @@ struct ContentView: View {
         .tint(gold)
         .safeAreaInset(edge: .bottom) { transport }
         .sheet(isPresented: $showHelp) { help }
+        .alert("حفظ صوت جديد", isPresented: $showSave) {
+            TextField("اسم الصوت", text: $soundName)
+            Button("حفظ") { audio.saveSound(soundName); soundName = "" }
+            Button("إلغاء", role: .cancel) {}
+        } message: { Text("يحفظ المؤثرات ومفاتيح تشغيلها لوضع العود أو الصوت البشري.") }
         .onAppear {
             #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("--preview-effects") { page = 1 }
@@ -78,13 +84,28 @@ struct ContentView: View {
                     Text(SoundSettings.detail(audio.settings.preset)).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button { audio.saveFavorite() } label: { Label("حفظ", systemImage: "bookmark") }.buttonStyle(.bordered)
+                Button { showSave = true } label: { Label("حفظ", systemImage: "bookmark") }.buttonStyle(.bordered)
                 if audio.savedFavorite {
                     Button { audio.loadFavorite() } label: { Image(systemName: "bookmark.fill") }.buttonStyle(.bordered).accessibilityLabel("استعادة مفضلتي")
                 }
             }
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 140))], spacing: 10) {
-                ForEach(SoundSettings.names, id: \.self) { name in presetButton(name) }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(SoundSettings.names, id: \.self) { name in presetButton(name).frame(width: 175) }
+                }
+            }
+            Text("اسحب الألوان لاختيار طابع عزفك").font(.caption).foregroundStyle(.secondary)
+            if !audio.namedSounds.isEmpty {
+                Menu {
+                    ForEach(audio.namedSounds) { sound in
+                        Button("\(sound.name) • \(sound.mode.title)") { audio.loadSound(sound) }
+                    }
+                    Menu("حذف صوت محفوظ") {
+                        ForEach(audio.namedSounds) { sound in
+                            Button(sound.name, role: .destructive) { audio.deleteSound(sound.id) }
+                        }
+                    }
+                } label: { Label("أصواتي المحفوظة", systemImage: "bookmark.fill").frame(minHeight: 44) }
             }
             VStack(spacing: 18) {
                 heading("التحكم السريع", icon: "slider.horizontal.3")
@@ -120,27 +141,37 @@ struct ContentView: View {
     private var effects: some View {
         VStack(spacing: 18) {
             VStack(spacing: 18) {
-                effectHeading("صدى المكان", icon: "building.columns", parameter: .reverb, fallback: 0.5)
+                effectHeading("صدى المكان", icon: "building.columns", effect: .reverb)
                 Text("اترك فراغًا قبل الصدى لتبقى ضربة الريشة واضحة، ثم أطِل الذيل للمساحة الكبيرة.").font(.caption).foregroundStyle(.secondary)
                 control(.reverb); control(.decay); control(.predelay); control(.tone)
             }.card()
             VStack(spacing: 18) {
-                effectHeading("صدى الإيقاع", icon: "repeat", parameter: .delay, fallback: 0.35)
+                effectHeading("صدى الإيقاع", icon: "repeat", effect: .delay)
                 control(.delay); control(.delayTime); control(.feedback)
                 Button { audio.tapTempo() } label: {
                     Label("اضغط مرتين على إيقاعك", systemImage: "hand.tap").frame(maxWidth: .infinity, minHeight: 44)
                 }.buttonStyle(.bordered)
             }.card()
             VStack(spacing: 18) {
-                effectHeading("الحركة", icon: "waveform.path", parameter: .modulation, fallback: 0.4)
+                effectHeading("الحركة", icon: "waveform.path", effect: .motion)
                 Picker("طابع الحركة", selection: Binding(get: { audio.value(.flanger) > 0.5 ? 1 : 0 }, set: { audio.set(.flanger, Double($0)) })) {
                     Text("Chorus • امتلاء").tag(0); Text("Flanger • تموّج").tag(1)
                 }.pickerStyle(.segmented)
-                control(.modulation); control(.modRate); control(.doubler)
+                Text("الكورس يضيف طبقات متقاربة للامتلاء؛ الفلانجر يعطي تموّجًا بنبرة معدنية. الطابعان بديلان في هذه الوحدة.").font(.caption).foregroundStyle(.secondary)
+                control(.modulation); control(.modRate)
             }.card()
             VStack(spacing: 18) {
-                heading("النبرة والامتلاء", icon: "slider.horizontal.3")
-                control(.low); control(.mid); control(.high); control(.compression); control(.makeup)
+                effectHeading("مضاعفة الصوت • Doubler", icon: "square.on.square", effect: .doubler)
+                control(.doubler)
+            }.card()
+            VStack(spacing: 18) {
+                effectHeading("موازنة النغمة • EQ", icon: "slider.horizontal.3", effect: .eq)
+                Text("يضبط عمق النغمة وحضورها ولمعانها دون تغيير النوتة.").font(.caption).foregroundStyle(.secondary)
+                control(.low); control(.mid); control(.high)
+            }.card()
+            VStack(spacing: 18) {
+                effectHeading("توازن القوة • Compressor", icon: "waveform", effect: .compressor)
+                control(.compression); control(.makeup)
                 Text("التعويض يرفع مستوى الصوت بعد الضغط. إذا عملت حماية القمم باستمرار، خفّضه.").font(.caption).foregroundStyle(.secondary)
             }.card()
             if audio.mode == .voice {
@@ -191,11 +222,13 @@ struct ContentView: View {
     private func heading(_ title: String, icon: String) -> some View {
         Label(title, systemImage: icon).font(.headline).foregroundStyle(gold).frame(maxWidth: .infinity, alignment: .leading)
     }
-    private func effectHeading(_ title: String, icon: String, parameter: Parameter, fallback: Double) -> some View {
-        Toggle(isOn: Binding(get: { audio.value(parameter) > 0.001 }, set: { enabled in
-            if enabled { audio.set(parameter, previousAmounts[parameter] ?? fallback) }
-            else { previousAmounts[parameter] = audio.value(parameter); audio.set(parameter, 0) }
-        })) { heading(title, icon: icon) }.accessibilityLabel("تفعيل \(title)")
+    private func effectHeading(_ title: String, icon: String, effect: Effect) -> some View {
+        Toggle(isOn: Binding(get: { audio.settings.enabled(effect) }, set: { audio.setEnabled(effect, $0) })) {
+            VStack(alignment: .leading, spacing: 4) {
+                heading(title, icon: icon)
+                Text(audio.settings.enabled(effect) ? "مفعّل" : "متوقف • الإعدادات محفوظة").font(.caption).foregroundStyle(.secondary)
+            }
+        }.accessibilityLabel("تفعيل \(title)")
     }
     private func control(_ p: Parameter, accent: Color = gold) -> some View {
         VStack(spacing: 4) {
@@ -203,6 +236,7 @@ struct ContentView: View {
                 Text(p.label).font(.subheadline); Spacer()
                 Text(p.text(audio.value(p))).font(.subheadline.monospacedDigit().bold()).foregroundStyle(accent).environment(\.layoutDirection, .leftToRight)
             }
+            Text(p.explanation).font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading).fixedSize(horizontal: false, vertical: true)
             Slider(value: Binding(get: { audio.value(p) }, set: { audio.set(p, $0) }), in: p.range)
                 .tint(accent).frame(minHeight: 44).accessibilityLabel(p.label).accessibilityValue(p.text(audio.value(p)))
         }
