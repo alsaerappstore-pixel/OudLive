@@ -1,42 +1,11 @@
-# نتائج التحقق — 2026-09-29
+# نتائج التحقق — الإصدار 2.0
 
-## نُفّذ محليًا على Windows
+- [البناء الناجح](https://github.com/alsaerappstore-pixel/OudLive/actions/runs/36604489866)، للنسخة `0e38dadeb9bc8e42db0a3d1eda2a84a3209d4614`.
+- Xcode 16.4: نجح تجميع جهاز iPhone arm64 مع الحد الأدنى iOS 16.
+- نجحت 17 حالة DSP محليًا على Windows، ثم على macOS مع AddressSanitizer وUndefinedBehaviorSanitizer.
+- نجح اختبار Swift لترحيل إعدادات v1، حفظ v2 واستعادتها، رفض القيم غير الصالحة، واختلاف وصلاحية الألوان في وضعي العود والصوت البشري.
+- اجتاز IPA فحص Mach-O arm64 وiPhoneOS وسلامة ZIP.
+- حالة المحاكي: نجح تشغيل التطبيق ومراجعة الصفحة الرئيسية بصريًا. لم يتم التحقق بصريًا من صفحتي المؤثرات والتوصيل؛ التقط الفحص الآلي الصفحة الرئيسية ثلاث مرات.
+- لم نجرب الصوت الفعلي أو Bluetooth أو تأخيره على iPhone خاص بنا. المستخدم أكد عمل نسخة سابقة؛ هذا لا يكفي لاعتماد الجودة السمعية للنسخة الجديدة.
 
-- بُني قلب معالجة الصوت C++17 بواسطة Zig 0.14.1 / Clang، مع `-O2 -Wall -Wextra -Werror`. تبقى assertions مفعّلة صراحةً في الاختبارات.
-- نجحت 11 حالة فحص: تجاوز جاف دون تأخير عينات إضافي، EQ عند 180 Hz، ضغط الإشارة، توقيت الصدى، ذيل Reverb، Chorus، Flanger، Doubler، وقيم الخرج والكتم ومدخلات NaN عند 44.1 و48 و96 kHz.
-- فُحصت بنية مشروع Xcode وروابط ملفاته ومخطط البناء، XML وملفات الخصوصية والأصول، تطابق فهارس التحكم بين Swift وC++، وسلامة حزمة المصدر.
-
-## نُفّذ على macOS عبر GitHub Actions
-
-- نجح تجميع Swift وObjective-C++ باستخدام Xcode 16.4 وiPhoneOS 18.5 SDK، والحد الأدنى iOS 16.
-- نجحت الاختبارات الـ11 مع AddressSanitizer وUndefinedBehaviorSanitizer.
-- أُنتج `OudLive-unsigned.ipa` واجتاز فحص arm64 وiPhoneOS وبنية ZIP.
-- [البناء الناجح](https://github.com/alsaerappstore-pixel/OudLive/actions/runs/36600882735) للنسخة `b6dea7ef5c48534e07beb435e1c7310b20526fcb`.
-
-## لم يُنفّذ بعد
-
-- توقيع IPA وتثبيته بـ Sideloadly على جهاز المستخدم.
-- تشغيل الواجهة وVoiceOver واختبار الصوت والتأخير والحرارة والخلفية على iPhone.
-
-نجاح البناء واختبارات DSP لا يعادل اختباره على الهاتف. لا يزال يلزم التثبيت وتجربة صوت فعلية.
-
-## سجل DSP
-
-```text
-PASS: dry bypass has no added sample delay
-PASS: low EQ +6 dB measured at 180 Hz
-PASS: compressor reduces a sustained loud tone
-PASS: first echo at 100 ms and zero feedback prevents repeats
-PASS: reverb has a decaying stereo tail
-PASS: chorus produces independent stereo voices
-PASS: flanger produces independent stereo voices
-PASS: doubler produces independent stereo voices
-PASS: bounded output, NaN rejection, mute at 44100 Hz
-PASS: bounded output, NaN rejection, mute at 48000 Hz
-PASS: bounded output, NaN rejection, mute at 96000 Hz
-All DSP checks passed. Device latency and iOS integration still require hardware testing.
-```
-
-## تحديث 1.1 — Bluetooth
-
-نجح بناء نسخة A2DP وظهور اسم الميكروفون وزر اختيار السماعة. نجحت الاختبارات الـ11 وفحص IPA. أكد المستخدم عمل 1.0 على USB؛ تجربة Bluetooth في 1.1 ما زالت مطلوبة. يوجد تحذير إهمال من SDK لزر MPVolumeView؛ لا يمنع البناء.
+هذه نتائج بناء ومعادلات وتشغيل واجهة، وليست ضمانًا لزمن تأخير أو استقرار حراري في عرض موسيقي. راجع `DEVICE_TESTS_AR.md` للتجارب الميدانية.
