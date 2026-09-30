@@ -1,15 +1,13 @@
 {
-  "version": "2.0.0",
-  "build_number": 3,
-  "commit": "0e38dadeb9bc8e42db0a3d1eda2a84a3209d4614",
-  "workflow_run": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/36604489866",
+  "version": "2.1.0",
+  "build_number": 4,
+  "commit": "e4175a3a468f66f6eaa6cc2708ef77dcbddb3cde",
+  "workflow_run": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/36691685070",
+  "artifact_url": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/36691685070/artifacts/11085911985",
   "result": "success",
-  "artifact_url": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/36604489866/artifacts/11049699765",
-  "artifact_zip_sha256": "91c639b3dafff83800ac607187122d63346326df5fde326dc348573476a93f26",
   "dsp_checks_passed": 17,
-  "settings_migration_tested": true,
-  "bluetooth_a2dp_enabled": true,
-  "bluetooth_device_tested": false,
+  "settings_tested": true,
   "signed": false,
-  "simulator": "نجح تشغيل التطبيق ومراجعة الصفحة الرئيسية بصريًا. لم يتم التحقق بصريًا من صفحتي المؤثرات والتوصيل؛ التقط الفحص الآلي الصفحة الرئيسية ثلاث مرات"
+  "bluetooth_device_tested": false,
+  "simulator": "الفحص الآلي قيد التشغيل عند تجهيز التسليم؛ لم تُعتمد لقطات واجهة هذا الإصدار بصريًا"
 }
