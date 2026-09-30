@@ -236,7 +236,7 @@ extension AudioModel {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("Recordings", isDirectory: true)
     }
     func refreshRecordings() {
-        recordings = ((try? FileManager.default.contentsOfDirectory(at: recordingsDirectory, includingPropertiesForKeys: [.creationDateKey])) ?? [])
+        recordings = ((try? FileManager.default.contentsOfDirectory(at: recordingsDirectory, includingPropertiesForKeys: nil)) ?? [])
             .filter { ["wav", "mp4"].contains($0.pathExtension.lowercased()) }.sorted { $0.lastPathComponent > $1.lastPathComponent }
     }
     func beginRecording(video: Bool, front: Bool) {
@@ -250,7 +250,9 @@ extension AudioModel {
                 guard recordingGeneration == token, recordingPreparing else { return }
                 guard allowed else { recordingPreparing = false; message = "اسمح بالكاميرا من إعدادات الآيفون؛ التسجيل الصوتي متاح دونها."; return }
             }
-            guard running, recordingGeneration == token, recordingPreparing else { recordingPreparing = false; return }
+            guard running, recordingGeneration == token, recordingPreparing else {
+                if recordingGeneration == token { recordingPreparing = false }; return
+            }
             do {
                 try FileManager.default.createDirectory(at: recordingsDirectory, withIntermediateDirectories: true)
                 let date = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
@@ -267,6 +269,7 @@ extension AudioModel {
                         }
                         if let error {
                             self.recordingPreparing = false; self.camera = nil; self.cameraSession = nil
+                            try? FileManager.default.removeItem(at: videoURL)
                             self.message = error.localizedDescription; return
                         }
                         self.startRecordingFile(audioURL, cameraURL: videoURL)
@@ -296,9 +299,13 @@ extension AudioModel {
         }
         guard recording, let audioURL = recordingURL else { return }
         recording = false; recordingFinishing = true
-        let audioStart = bridge.recordingStartHostSeconds
         var audioError: Error?
         do { try bridge.finishRecording() } catch { audioError = error }
+        let audioStart = bridge.recordingStartHostSeconds
+        if audioStart == 0 {
+            audioError = VideoRecorder.error("التسجيل قصير جدًا. انتظر لحظة قبل إيقافه.")
+            try? FileManager.default.removeItem(at: audioURL)
+        }
         recordingURL = nil; recordingDate = nil
         let camera = self.camera, videoURL = cameraURL
         self.camera = nil; cameraURL = nil; cameraSession = nil

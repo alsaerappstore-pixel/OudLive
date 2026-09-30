@@ -1,5 +1,4 @@
 import AVFoundation
-import UIKit
 
 // All capture and writer state belongs to this serial queue, never the audio callback.
 final class VideoRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
@@ -18,7 +17,9 @@ final class VideoRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
             do {
                 self.session.beginConfiguration()
                 configuring = true
+                #if os(iOS)
                 self.session.automaticallyConfiguresApplicationAudioSession = false
+                #endif
                 self.session.sessionPreset = .hd1280x720
                 guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: front ? .front : .back) else {
                     throw Self.error("الكاميرا غير متاحة.")

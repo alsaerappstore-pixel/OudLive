@@ -29,6 +29,10 @@ jobs:
         run: |
           swiftc OudLive/Settings.swift OudLive/RecordingTiming.swift Tests/SettingsTests/main.swift -o build/settings-tests
           build/settings-tests | tee build/settings-test-results.txt
+      - name: Verify video export with processed soundtrack
+        run: |
+          swiftc -parse-as-library OudLive/VideoRecorder.swift OudLive/RecordingTiming.swift Tests/ExportTests/main.swift -o build/export-tests
+          build/export-tests | tee build/export-test-results.txt
       - name: Upload IPA for Sideloadly
         uses: actions/upload-artifact@v4
         with:
@@ -48,6 +52,7 @@ jobs:
             build/dsp-test-results.txt
             build/settings-test-results.txt
             build/recording-test-results.txt
+            build/export-test-results.txt
             build/Build-*.xcresult
           if-no-files-found: ignore
           retention-days: 14
