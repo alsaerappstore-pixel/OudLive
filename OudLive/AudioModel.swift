@@ -186,6 +186,7 @@ final class AudioModel: ObservableObject {
         if let data = try? JSONEncoder().encode(saved) { UserDefaults.standard.set(data, forKey: storageKey) }
     }
     func toggle() {
+        if recordingPreparing { finishRecording(); return }
         if running || starting { stop(); return }
         starting = true; generation += 1; let request = generation
         session.requestRecordPermission { [weak self] granted in
