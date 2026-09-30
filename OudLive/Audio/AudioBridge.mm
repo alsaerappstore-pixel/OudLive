@@ -3,12 +3,16 @@
 #include "DSP.hpp"
 #include <memory>
 #include <cstring>
+#include <mach/mach_time.h>
+#include "WetFileWriter.hpp"
 
 struct AudioState {
     AudioUnit unit=nullptr;
     oud::DSP dsp;
     std::vector<float> input;
     std::atomic<int> error{0};
+    WetFileWriter recorder;
+    double sampleRate=48000;
 };
 
 static OSStatus render(void *context, AudioUnitRenderActionFlags *flags,
@@ -35,6 +39,9 @@ static OSStatus render(void *context, AudioUnitRenderActionFlags *flags,
     state->dsp.process(static_cast<float *>(input.mBuffers[0].mData),
                        static_cast<float *>(out->mBuffers[0].mData),
                        static_cast<float *>(out->mBuffers[1].mData),frames);
+    // Write only the final stereo DSP output. Prewarmed asynchronous file I/O
+    // keeps filesystem work off this callback. The reader fence protects close.
+    state->recorder.append(out,frames,(time->mFlags & kAudioTimeStampHostTimeValid) ? time->mHostTime : mach_absolute_time());
     return noErr;
 }
 
@@ -47,6 +54,7 @@ static OSStatus render(void *context, AudioUnitRenderActionFlags *flags,
 }
 - (BOOL)startWithSampleRate:(double)sampleRate error:(NSError **)error {
     [self stop];
+    _state->sampleRate=sampleRate;
     AudioComponentDescription description={kAudioUnitType_Output,kAudioUnitSubType_RemoteIO,kAudioUnitManufacturer_Apple,0,0};
     AudioComponent component=AudioComponentFindNext(nullptr,&description);
     OSStatus result=component?AudioComponentInstanceNew(component,&_state->unit):kAudio_ParamError;
@@ -87,7 +95,27 @@ static OSStatus render(void *context, AudioUnitRenderActionFlags *flags,
         AudioOutputUnitStop(_state->unit); AudioUnitUninitialize(_state->unit);
         AudioComponentInstanceDispose(_state->unit); _state->unit=nullptr;
     }
+    [self finishRecording:nil];
 }
+- (BOOL)beginRecordingAtURL:(NSURL *)url error:(NSError **)error {
+    if(!_state->unit || _state->recorder.active()) {
+        if(error) *error=[NSError errorWithDomain:@"OudLive.Recording" code:-1 userInfo:@{NSLocalizedDescriptionKey:@"ابدأ الصوت أولًا وأوقف التسجيل السابق."}];
+        return NO;
+    }
+    OSStatus result=_state->recorder.begin((__bridge CFURLRef)url,_state->sampleRate);
+    if(result!=noErr) {
+        if(error) *error=[NSError errorWithDomain:@"OudLive.Recording" code:result userInfo:@{NSLocalizedDescriptionKey:@"تعذّر فتح ملف التسجيل. تحقق من مساحة التخزين."}];
+        return NO;
+    }
+    return YES;
+}
+- (BOOL)finishRecording:(NSError **)error {
+    OSStatus result=_state->recorder.finish();
+    if(result!=noErr && error) *error=[NSError errorWithDomain:@"OudLive.Recording" code:result userInfo:@{NSLocalizedDescriptionKey:@"لم يكتمل التسجيل. قد تكون مساحة التخزين غير كافية."}];
+    return result==noErr;
+}
+- (double)recordingStartHostSeconds { return _state->recorder.startSeconds(); }
+- (int)recordingError { return _state->recorder.error.load(); }
 - (void)dealloc { [self stop]; }
 - (void)setParameter:(NSInteger)parameter value:(float)value { _state->dsp.set((int)parameter,value); }
 - (float)inputPeak { return _state->dsp.inputPeak.load(std::memory_order_relaxed); }

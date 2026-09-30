@@ -21,9 +21,13 @@ jobs:
           build/dsp-tests | tee build/dsp-test-results.txt
       - name: Build and package arm64 iPhone app
         run: bash scripts/build-ipa.sh
+      - name: Verify processed audio recording
+        run: |
+          clang++ -std=c++17 -O1 -g -fsanitize=address,undefined Tests/recording_tests.cpp -framework AudioToolbox -framework CoreFoundation -o build/recording-tests
+          build/recording-tests | tee build/recording-test-results.txt
       - name: Test preset persistence and migration
         run: |
-          swiftc OudLive/Settings.swift Tests/SettingsTests/main.swift -o build/settings-tests
+          swiftc OudLive/Settings.swift OudLive/RecordingTiming.swift Tests/SettingsTests/main.swift -o build/settings-tests
           build/settings-tests | tee build/settings-test-results.txt
       - name: Upload IPA for Sideloadly
         uses: actions/upload-artifact@v4
@@ -43,6 +47,7 @@ jobs:
             build/build.log
             build/dsp-test-results.txt
             build/settings-test-results.txt
+            build/recording-test-results.txt
             build/Build-*.xcresult
           if-no-files-found: ignore
           retention-days: 14

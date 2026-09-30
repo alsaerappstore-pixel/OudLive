@@ -4,6 +4,17 @@ import UIKit
 
 @MainActor
 final class AudioModel: ObservableObject {
+    @Published private(set) var recording = false
+    @Published private(set) var recordingPreparing = false
+    @Published private(set) var recordingFinishing = false
+    @Published private(set) var recordingSeconds = 0
+    @Published private(set) var recordings: [URL] = []
+    @Published private(set) var cameraSession: AVCaptureSession?
+    private var camera: VideoRecorder?
+    private var recordingURL: URL?
+    private var cameraURL: URL?
+    private var recordingDate: Date?
+    private var recordingGeneration = 0
     @Published private(set) var namedSounds: [NamedSound] = []
     @Published private(set) var running = false
     @Published private(set) var starting = false
@@ -46,12 +57,16 @@ final class AudioModel: ObservableObject {
         mode = saved.mode; settings = mode == .oud ? saved.oud : saved.voice
         // Do not restore mute/bypass implicitly; the engine is always stopped on launch.
         settings[.mute] = 0; settings[.bypass] = 0; stableBuffer = saved.stableBuffer
-        apply()
+        apply(); refreshRecordings()
         savedFavorite = UserDefaults.standard.data(forKey: "OudLive.favorite.v2") != nil
         Timer.publish(every: 0.07, on: .main, in: .common).autoconnect().sink { [weak self] _ in
             guard let self, self.running else { return }
             self.inputLevel = self.bridge.inputPeak; self.outputLevel = self.bridge.outputPeak
             self.limitingDB = self.bridge.gainReduction
+            if self.recording, let start = self.recordingDate {
+                self.recordingSeconds = Int(Date().timeIntervalSince(start))
+                if self.bridge.recordingError != 0 { self.finishRecording() }
+            }
             if self.bridge.renderError != 0 {
                 let code = self.bridge.renderError
                 self.stop(); self.message = "توقّف الصوت بسبب الملحق (\(code)). جرّب وضع الاستقرار ثم أعد التشغيل."
@@ -70,6 +85,10 @@ final class AudioModel: ObservableObject {
                 self.stop(); self.message = "تغيّر توصيل الصوت. تحقق من السماعة ثم اضغط ابدأ."
             }
             self.refreshRoute()
+        }.store(in: &subscriptions)
+        NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification).receive(on: RunLoop.main).sink { [weak self] _ in
+            guard let self else { return }
+            if self.recording || self.recordingPreparing { self.finishRecording() }
         }.store(in: &subscriptions)
         NotificationCenter.default.publisher(for: AVAudioSession.mediaServicesWereResetNotification).receive(on: RunLoop.main).sink { [weak self] _ in
             self?.stop(); self?.message = "أُعيد تشغيل خدمة الصوت. اضغط ابدأ مجددًا."
@@ -197,6 +216,7 @@ final class AudioModel: ObservableObject {
         }
     }
     func stop() {
+        if recording || recordingPreparing { finishRecording() }
         generation += 1; starting = false; bridge.stop(); running = false
         inputLevel = 0; outputLevel = 0; limitingDB = 0; UIApplication.shared.isIdleTimerDisabled = false
         try? session.setActive(false, options: .notifyOthersOnDeactivation)
@@ -208,5 +228,107 @@ final class AudioModel: ObservableObject {
         bluetoothOutput = session.currentRoute.outputs.contains { $0.portType == .bluetoothA2DP }
         sampleRate = session.sampleRate; bufferMS = session.ioBufferDuration * 1000
         hardwareMS = (session.inputLatency + session.outputLatency) * 1000
+    }
+}
+
+extension AudioModel {
+    private var recordingsDirectory: URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("Recordings", isDirectory: true)
+    }
+    func refreshRecordings() {
+        recordings = ((try? FileManager.default.contentsOfDirectory(at: recordingsDirectory, includingPropertiesForKeys: [.creationDateKey])) ?? [])
+            .filter { ["wav", "mp4"].contains($0.pathExtension.lowercased()) }.sorted { $0.lastPathComponent > $1.lastPathComponent }
+    }
+    func beginRecording(video: Bool, front: Bool) {
+        guard running, !recording, !recordingPreparing, !recordingFinishing else {
+            message = "ابدأ العزف أولًا وانتظر اكتمال حفظ التسجيل السابق."; return
+        }
+        recordingPreparing = true; recordingGeneration += 1; let token = recordingGeneration
+        Task {
+            if video {
+                let allowed = await AVCaptureDevice.requestAccess(for: .video)
+                guard recordingGeneration == token, recordingPreparing else { return }
+                guard allowed else { recordingPreparing = false; message = "اسمح بالكاميرا من إعدادات الآيفون؛ التسجيل الصوتي متاح دونها."; return }
+            }
+            guard running, recordingGeneration == token, recordingPreparing else { recordingPreparing = false; return }
+            do {
+                try FileManager.default.createDirectory(at: recordingsDirectory, withIntermediateDirectories: true)
+                let date = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+                let name = "OudLive-" + date + "-" + UUID().uuidString.prefix(6)
+                let audioURL = recordingsDirectory.appendingPathComponent(name + ".wav")
+                if video {
+                    let camera = VideoRecorder()
+                    let videoURL = FileManager.default.temporaryDirectory.appendingPathComponent(name + ".mov")
+                    self.camera = camera; cameraSession = camera.session
+                    camera.prepare(url: videoURL, front: front) { [weak self] error in
+                        guard let self else { return }
+                        guard self.running, self.recordingPreparing, self.recordingGeneration == token else {
+                            camera.finish { _ in try? FileManager.default.removeItem(at: videoURL) }; return
+                        }
+                        if let error {
+                            self.recordingPreparing = false; self.camera = nil; self.cameraSession = nil
+                            self.message = error.localizedDescription; return
+                        }
+                        self.startRecordingFile(audioURL, cameraURL: videoURL)
+                    }
+                } else { startRecordingFile(audioURL, cameraURL: nil) }
+            } catch { recordingPreparing = false; message = error.localizedDescription }
+        }
+    }
+    private func startRecordingFile(_ url: URL, cameraURL: URL?) {
+        do {
+            try bridge.beginRecording(at: url)
+            recordingURL = url; self.cameraURL = cameraURL
+            recordingDate = Date(); recordingSeconds = 0; recording = true; recordingPreparing = false
+            camera?.begin()
+            message = cameraURL == nil ? "يسجّل الصوت المعالج الآن. الكتم ومستوى الخروج يؤثران في التسجيل." : "يسجّل الفيديو والصوت المعالج. أبقِ التطبيق مفتوحًا والهاتف عموديًا."
+        } catch {
+            recordingPreparing = false; message = error.localizedDescription
+            camera?.finish { _ in if let cameraURL { try? FileManager.default.removeItem(at: cameraURL) } }
+            camera = nil; cameraSession = nil
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+    func finishRecording() {
+        recordingGeneration += 1
+        if recordingPreparing {
+            recordingPreparing = false; cameraSession = nil; camera = nil; return
+        }
+        guard recording, let audioURL = recordingURL else { return }
+        recording = false; recordingFinishing = true
+        let audioStart = bridge.recordingStartHostSeconds
+        var audioError: Error?
+        do { try bridge.finishRecording() } catch { audioError = error }
+        recordingURL = nil; recordingDate = nil
+        let camera = self.camera, videoURL = cameraURL
+        self.camera = nil; cameraURL = nil; cameraSession = nil
+        refreshRecordings()
+        guard let camera, let videoURL else {
+            recordingFinishing = false
+            message = audioError?.localizedDescription ?? "حُفظ التسجيل الصوتي بنفس المؤثرات. افتح التسجيل أو شاركه من قائمة تسجيلاتي."
+            return
+        }
+        let background = UIApplication.shared.beginBackgroundTask(withName: "FinishRecording")
+        message = "جارٍ تجهيز الفيديو بالصوت المعالج…"
+        camera.finish { [weak self] result in
+            Task { @MainActor in
+                defer { if background != .invalid { UIApplication.shared.endBackgroundTask(background) } }
+                guard let self else { return }
+                defer {
+                    self.recordingFinishing = false; self.refreshRecordings()
+                    try? FileManager.default.removeItem(at: videoURL)
+                }
+                let destination = audioURL.deletingPathExtension().appendingPathExtension("mp4")
+                do {
+                    if let audioError { throw audioError }
+                    let videoStart = try result.get()
+                    try await RecordingExport.combine(audio: audioURL, video: videoURL, audioStart: audioStart, videoStart: videoStart, destination: destination)
+                    self.message = "حُفظ الفيديو بصوت التأثيرات، ومعه نسخة صوتية منفصلة."
+                } catch {
+                    try? FileManager.default.removeItem(at: destination)
+                    self.message = "تعذّر تجهيز الفيديو: \(error.localizedDescription) راجع النسخة الصوتية في تسجيلاتي."
+                }
+            }
+        }
     }
 }

@@ -38,3 +38,11 @@ let named = NamedSound(name: "تجربة", mode: .voice, settings: switched)
 let restored = try JSONDecoder().decode(NamedSound.self, from: JSONEncoder().encode(named))
 precondition(restored.id == named.id && restored.mode == .voice && restored.settings.values == switched.values)
 print("PASS: independent switches preserve settings, bypass correctly and persist; named sounds round-trip")
+let audioFirst = RecordingTiming(audioStart: 10, videoStart: 12, audioDuration: 8, videoDuration: 9)!
+precondition(audioFirst.audioTrim == 2 && audioFirst.videoTrim == 0 && audioFirst.duration == 6)
+let videoFirst = RecordingTiming(audioStart: 12, videoStart: 10, audioDuration: 8, videoDuration: 9)!
+precondition(videoFirst.audioTrim == 0 && videoFirst.videoTrim == 2 && videoFirst.duration == 7)
+precondition(RecordingTiming(audioStart: 0, videoStart: 2, audioDuration: 8, videoDuration: 9) == nil)
+precondition(RecordingTiming(audioStart: 1, videoStart: 20, audioDuration: 8, videoDuration: 9) == nil)
+precondition(RecordingTiming(audioStart: .nan, videoStart: 2, audioDuration: 8, videoDuration: 9) == nil)
+print("PASS: media alignment trims early audio or video, keeps overlap, rejects missing or invalid timestamps")

@@ -8,11 +8,14 @@
 <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
 <key>CFBundleName</key><string>$(PRODUCT_NAME)</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>2.1.0</string>
-<key>CFBundleVersion</key><string>4</string>
+<key>CFBundleShortVersionString</key><string>2.2.0</string>
+<key>CFBundleVersion</key><string>5</string>
 <key>CFBundleLocalizations</key><array><string>ar</string></array>
 <key>LSRequiresIPhoneOS</key><true/>
-<key>NSMicrophoneUsageDescription</key><string>نستخدم الميكروفون لمعالجة صوت العود أو صوتك وسماعه مباشرة في السماعة. لا نسجّل الصوت ولا نرفعه.</string>
+<key>NSMicrophoneUsageDescription</key><string>نستخدم الميكروفون لمعالجة صوت العود أو صوتك وسماعه مباشرة في السماعة. يمكنك تسجيل الصوت المعالج محليًا عند الضغط على زر التسجيل؛ لا نرفعه تلقائيًا.</string>
+<key>NSCameraUsageDescription</key><string>نستخدم الكاميرا عند اختيار تسجيل فيديو لعزفك مع صوت المؤثرات.</string>
+<key>UIFileSharingEnabled</key><true/>
+<key>LSSupportsOpeningDocumentsInPlace</key><true/>
 <key>UIBackgroundModes</key><array><string>audio</string></array>
 <key>UILaunchScreen</key><dict/>
 <key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>

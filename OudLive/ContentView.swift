@@ -18,12 +18,13 @@ struct ContentView: View {
                 header
                 monitor
                 Picker("صفحة التحكم", selection: $page) {
-                    Text("العزف").tag(0); Text("المؤثرات").tag(1); Text("التوصيل").tag(2)
+                    Text("العزف").tag(0); Text("المؤثرات").tag(1); Text("التوصيل").tag(2); Text("التسجيل").tag(3)
                 }.pickerStyle(.segmented)
                 if page == 0 { performance }
                 if page == 1 { effects }
                 if page == 2 { connection }
-                Text("عود لايف 2.1  •  معالجة محلية بلا تسجيل")
+                if page == 3 { RecordingView(audio: audio) }
+                Text("عود لايف 2.2  •  معالجة وتسجيل محلي")
                     .font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity)
             }.padding(20).frame(maxWidth: 740).frame(maxWidth: .infinity)
         }
@@ -40,6 +41,7 @@ struct ContentView: View {
             #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("--preview-effects") { page = 1 }
             if ProcessInfo.processInfo.arguments.contains("--preview-connection") { page = 2 }
+            if ProcessInfo.processInfo.arguments.contains("--preview-recording") { page = 3 }
             #endif
         }
     }
