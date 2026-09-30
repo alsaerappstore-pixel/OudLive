@@ -7,6 +7,9 @@ struct RecordingView: View {
     @State private var video = false
     @State private var front = false
     @State private var playing: RecordingItem?
+    @State private var saving: RecordingItem?
+    @State private var deleting: URL?
+    @State private var confirmDelete = false
     private var busy: Bool { audio.recording || audio.recordingPreparing || audio.recordingFinishing }
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -59,6 +62,7 @@ struct RecordingView: View {
                 Text("تظهر تسجيلاتك هنا بعد إيقاف التسجيل. تبقى على الآيفون حتى تشاركها بنفسك.").font(.caption).foregroundStyle(.secondary)
             }
             ForEach(audio.recordings, id: \.self) { url in
+                VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 12) {
                     Button {
                         audio.stop(); playing = RecordingItem(url: url)
@@ -71,18 +75,40 @@ struct RecordingView: View {
                             .font(.caption2).foregroundStyle(.secondary).lineLimit(2)
                     }
                     Spacer(minLength: 0)
-                    ShareLink(item: url) { Image(systemName: "square.and.arrow.up").frame(width: 44, height: 44) }
-                        .disabled(busy).accessibilityLabel("مشاركة أو حفظ التسجيل في الملفات")
+                }
+                HStack(spacing: 12) {
+                    Button { saving = RecordingItem(url: url) } label: { Label("حفظ", systemImage: "folder") }
+                    ShareLink(item: url) { Label("مشاركة", systemImage: "square.and.arrow.up") }
+                    Spacer(minLength: 0)
+                    Button(role: .destructive) { deleting = url; confirmDelete = true } label: { Label("حذف", systemImage: "trash") }
+                }.buttonStyle(.bordered).disabled(busy)
                 }.padding(12).background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
             }
             Text("الفيديو تجريبي: جرّب مقطعًا قصيرًا للتحقق من تزامن الصوت والصورة على جهازك. تأخير سماعة البلوتوث في الاستماع لا يُضاف عمدًا إلى التسجيل.")
                 .font(.caption).foregroundStyle(.secondary)
         }
         .sheet(item: $playing) { item in RecordingPlayback(url: item.url) }
+        .sheet(item: $saving) { item in RecordingSavePicker(url: item.url) }
+        .alert("حذف التسجيل؟", isPresented: $confirmDelete) {
+            Button("حذف", role: .destructive) {
+                if let url = deleting { audio.deleteRecording(url) }
+                deleting = nil
+            }
+            Button("إلغاء", role: .cancel) { deleting = nil }
+        } message: {
+            Text("سيُحذف هذا الملف من تسجيلاتي والجوال. النسخ التي حفظتها في مكان آخر تبقى كما هي.\n" + (deleting?.lastPathComponent ?? ""))
+        }
     }
 }
 
 private struct RecordingItem: Identifiable { let url: URL; var id: URL { url } }
+private struct RecordingSavePicker: UIViewControllerRepresentable {
+    let url: URL
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        UIDocumentPickerViewController(forExporting: [url], asCopy: true)
+    }
+    func updateUIViewController(_ controller: UIDocumentPickerViewController, context: Context) {}
+}
 private struct RecordingPlayback: View {
     @State private var player: AVPlayer
     @Environment(\.dismiss) private var dismiss

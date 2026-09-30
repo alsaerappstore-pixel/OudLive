@@ -252,6 +252,15 @@ extension AudioModel {
         recordings = ((try? FileManager.default.contentsOfDirectory(at: recordingsDirectory, includingPropertiesForKeys: nil)) ?? [])
             .filter { ["wav", "mp4"].contains($0.pathExtension.lowercased()) }.sorted { $0.lastPathComponent > $1.lastPathComponent }
     }
+    func deleteRecording(_ url: URL) {
+        guard !recording, !recordingPreparing, !recordingFinishing,
+              recordings.contains(url), url.isFileURL,
+              url.resolvingSymlinksInPath().deletingLastPathComponent() == recordingsDirectory.resolvingSymlinksInPath() else { return }
+        do {
+            try FileManager.default.removeItem(at: url)
+            refreshRecordings(); message = "حُذف التسجيل المحدد."
+        } catch { message = "تعذّر حذف التسجيل: \(error.localizedDescription)" }
+    }
     func beginRecording(video: Bool, front: Bool) {
         guard !starting, !recording, !recordingPreparing, !recordingFinishing else {
             message = "انتظر انتهاء التجهيز أو حفظ التسجيل السابق."; return

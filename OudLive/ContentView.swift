@@ -24,7 +24,7 @@ struct ContentView: View {
                 if page == 1 { effects }
                 if page == 2 { connection }
                 if page == 3 { RecordingView(audio: audio) }
-                Text("عود لايف 2.3  •  معالجة وتسجيل محلي")
+                Text("عود لايف 2.4  •  معالجة وتسجيل محلي")
                     .font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity)
             }.padding(20).frame(maxWidth: 740).frame(maxWidth: .infinity)
         }
