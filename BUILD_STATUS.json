@@ -1,9 +1,9 @@
 {
-  "version": "2.3.0",
-  "build_number": 6,
-  "commit": "edc678c6e4af504cdc2f0ef8dc2f3d302e5f07fb",
-  "workflow_run": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/36735979690",
-  "artifact_url": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/36735979690/artifacts/11107515071",
+  "version": "2.4.0",
+  "build_number": 7,
+  "commit": "2730b302bf719172cfdc4d6eaaa940d0945c87e2",
+  "workflow_run": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/36739218842",
+  "artifact_url": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/36739218842/artifacts/11110725579",
   "result": "success",
   "dsp_checks_passed": 19,
   "recording_samples_tested": true,
@@ -11,5 +11,5 @@
   "headphone_independent_recording_enabled": true,
   "headphone_independent_recording_device_tested": false,
   "signed": false,
-  "simulator": "بناء الجهاز واختبارات الملفات نجحت؛ لم تُراجع واجهة هذا الإصدار بصريًا على المحاكي عند التسليم"
+  "simulator": "لم تُختبر إجراءات الحفظ والمشاركة والحذف على جهاز حقيقي؛ نجح بناء التطبيق واختبارات الصوت والملفات"
 }
