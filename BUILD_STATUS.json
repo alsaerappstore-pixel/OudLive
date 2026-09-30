@@ -1,15 +1,15 @@
 {
-  "version": "2.2.0",
-  "build_number": 5,
-  "commit": "1598d2483c94649d057547ca5e350b20684217d3",
-  "workflow_run": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/36693725594",
-  "artifact_url": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/36693725594/artifacts/11086524501",
+  "version": "2.3.0",
+  "build_number": 6,
+  "commit": "edc678c6e4af504cdc2f0ef8dc2f3d302e5f07fb",
+  "workflow_run": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/36735979690",
+  "artifact_url": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/36735979690/artifacts/11107515071",
   "result": "success",
-  "dsp_checks_passed": 17,
+  "dsp_checks_passed": 19,
   "recording_samples_tested": true,
   "movie_export_tested": true,
-  "camera_device_tested": false,
-  "bluetooth_device_tested": false,
+  "headphone_independent_recording_enabled": true,
+  "headphone_independent_recording_device_tested": false,
   "signed": false,
-  "simulator": "بناء الجهاز والاختبارات اكتملت؛ فحص لقطات المحاكي لا يزال جاريًا عند تجهيز التسليم، ولم يُعتمد بصريًا"
+  "simulator": "بناء الجهاز واختبارات الملفات نجحت؛ لم تُراجع واجهة هذا الإصدار بصريًا على المحاكي عند التسليم"
 }
