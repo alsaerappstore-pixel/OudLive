@@ -1,5 +1,6 @@
 #import "AudioBridge.h"
 #import <AudioToolbox/AudioToolbox.h>
+#import <AVFoundation/AVFoundation.h>
 #include "DSP.hpp"
 #include <memory>
 #include <cstring>
@@ -10,6 +11,8 @@ struct AudioState {
     AudioUnit unit=nullptr;
     oud::DSP dsp;
     std::vector<float> input;
+    std::vector<float> recordLeft,recordRight;
+    std::atomic<bool> monitoring{false};
     std::atomic<int> error{0};
     WetFileWriter recorder;
     double sampleRate=48000;
@@ -38,10 +41,18 @@ static OSStatus render(void *context, AudioUnitRenderActionFlags *flags,
     *flags &= ~kAudioUnitRenderAction_OutputIsSilence;
     state->dsp.process(static_cast<float *>(input.mBuffers[0].mData),
                        static_cast<float *>(out->mBuffers[0].mData),
-                       static_cast<float *>(out->mBuffers[1].mData),frames);
+                       static_cast<float *>(out->mBuffers[1].mData),frames,
+                       state->recordLeft.data(),state->recordRight.data());
     // Write only the final stereo DSP output. Prewarmed asynchronous file I/O
     // keeps filesystem work off this callback. The reader fence protects close.
-    state->recorder.append(out,frames,(time->mFlags & kAudioTimeStampHostTimeValid) ? time->mHostTime : mach_absolute_time());
+    struct StereoBuffers { UInt32 count; AudioBuffer buffers[2]; } wet={2,{
+        {1,UInt32(frames*sizeof(float)),state->recordLeft.data()},
+        {1,UInt32(frames*sizeof(float)),state->recordRight.data()}}};
+    state->recorder.append(reinterpret_cast<AudioBufferList *>(&wet),frames,
+        (time->mFlags & kAudioTimeStampHostTimeValid) ? time->mHostTime : mach_absolute_time());
+    // Never send live microphone audio to the phone speaker. This gate is AFTER
+    // recording, so headphone absence cannot silence the saved file.
+    if(!state->monitoring.load()) silence();
     return noErr;
 }
 
@@ -49,8 +60,18 @@ static OSStatus render(void *context, AudioUnitRenderActionFlags *flags,
     std::unique_ptr<AudioState> _state;
 }
 - (instancetype)init {
-    if((self=[super init])) _state=std::make_unique<AudioState>();
+    if((self=[super init])) {
+        _state=std::make_unique<AudioState>();
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(routeChanged:)
+            name:AVAudioSessionRouteChangeNotification object:nil];
+    }
     return self;
+}
+- (void)routeChanged:(NSNotification *)notification {
+    (void)notification;
+    // Close the live output immediately; Swift reopens it only after validating
+    // the current headphone route. Recording has its own independent bus.
+    _state->monitoring.store(false);
 }
 - (BOOL)startWithSampleRate:(double)sampleRate error:(NSError **)error {
     [self stop];
@@ -79,6 +100,7 @@ static OSStatus render(void *context, AudioUnitRenderActionFlags *flags,
         if(result==noErr) check(AudioUnitGetProperty(_state->unit,kAudioUnitProperty_MaximumFramesPerSlice,kAudioUnitScope_Global,0,&maximum,&size));
         if(result==noErr) {
             _state->input.assign(maximum,0); _state->dsp.prepare(float(sampleRate)); _state->error.store(0);
+            _state->recordLeft.assign(maximum,0); _state->recordRight.assign(maximum,0);
             check(AudioOutputUnitStart(_state->unit));
         }
     }
@@ -116,8 +138,11 @@ static OSStatus render(void *context, AudioUnitRenderActionFlags *flags,
 }
 - (double)recordingStartHostSeconds { return _state->recorder.startSeconds(); }
 - (int)recordingError { return _state->recorder.error.load(); }
-- (void)dealloc { [self stop]; }
+- (void)dealloc { [[NSNotificationCenter defaultCenter] removeObserver:self]; [self stop]; }
 - (void)setParameter:(NSInteger)parameter value:(float)value { _state->dsp.set((int)parameter,value); }
+- (void)setMonitoringEnabled:(BOOL)enabled { _state->monitoring.store(enabled); }
+- (float)recordingPeak { return _state->dsp.recordPeak.load(); }
+- (float)recordingReduction { return _state->dsp.recordReduction.load(); }
 - (float)inputPeak { return _state->dsp.inputPeak.load(std::memory_order_relaxed); }
 - (float)outputPeak { return _state->dsp.outputPeak.load(std::memory_order_relaxed); }
 - (float)gainReduction { return _state->dsp.gainReduction.load(std::memory_order_relaxed); }

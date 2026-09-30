@@ -12,13 +12,15 @@ int main() {
     CFURLRef url=CFURLCreateFromFileSystemRepresentation(nullptr,reinterpret_cast<const UInt8 *>(path.data()),path.size(),false);
     WetFileWriter recorder;
     assert(recorder.begin(url,48000)==noErr);
-    oud::DSP dsp; dsp.prepare(48000);
-    dsp.set(oud::Input,0); dsp.set(oud::Output,-6); dsp.set(oud::Reverb,0.7);
-    std::vector<float> in(128),left(128),right(128),expected;
+    oud::DSP dsp;
+    dsp.set(oud::Input,0); dsp.set(oud::Output,-60); dsp.set(oud::Mute,1); dsp.set(oud::Reverb,0.7);
+    dsp.prepare(48000);
+    std::vector<float> in(128),left(128),right(128),monitorL(128),monitorR(128),expected;
     struct StereoBuffers { UInt32 count; AudioBuffer buffers[2]; } buffers={2,{{1,512,left.data()},{1,512,right.data()}}};
     for(int block=0;block<375;++block) {
         for(int i=0;i<128;++i) in[i]=block<100 ? 0.2f*std::sin((block*128+i)*440.f*6.2831853f/48000.f) : 0;
-        dsp.process(in.data(),left.data(),right.data(),128);
+        dsp.process(in.data(),monitorL.data(),monitorR.data(),128,left.data(),right.data());
+        for(int i=0;i<128;++i) assert(monitorL[i]==0 && monitorR[i]==0);
         for(int i=0;i<128;++i) { expected.push_back(left[i]); expected.push_back(right[i]); }
         recorder.append(reinterpret_cast<AudioBufferList *>(&buffers),128,mach_absolute_time());
         std::this_thread::sleep_for(std::chrono::milliseconds(1));

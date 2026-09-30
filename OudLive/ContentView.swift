@@ -24,7 +24,7 @@ struct ContentView: View {
                 if page == 1 { effects }
                 if page == 2 { connection }
                 if page == 3 { RecordingView(audio: audio) }
-                Text("عود لايف 2.2  •  معالجة وتسجيل محلي")
+                Text("عود لايف 2.3  •  معالجة وتسجيل محلي")
                     .font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity)
             }.padding(20).frame(maxWidth: 740).frame(maxWidth: .infinity)
         }
@@ -67,7 +67,9 @@ struct ContentView: View {
                 AudioOutputPicker().frame(width: 44, height: 44).accessibilityLabel("اختيار السماعة")
             }
             meter("التقاط", value: audio.inputLevel)
-            meter("خروج", value: audio.outputLevel)
+            meter("سماعة", value: audio.outputLevel)
+            meter("تسجيل", value: audio.recordingLevel)
+            if audio.running && !audio.monitoring { Text("التسجيل متاح بدون سماعة • الاستماع المباشر متوقف").font(.caption).foregroundStyle(gold) }
             if audio.limitingDB > 2 {
                 Label("حماية القمم تعمل • خفّض الالتقاط أو تعويض المستوى إذا أصبح الصوت مضغوطًا.", systemImage: "waveform.badge.minus")
                     .font(.caption).foregroundStyle(gold)
@@ -208,12 +210,12 @@ struct ContentView: View {
         VStack(spacing: 10) {
             HStack(spacing: 12) {
                 Button { audio.toggle() } label: {
-                    Label(audio.starting ? "إلغاء" : (audio.running ? "إيقاف" : "ابدأ العزف"), systemImage: audio.running ? "stop.fill" : "play.fill")
+                    Label(audio.starting ? "إلغاء" : (audio.running ? "إيقاف" : "ابدأ المعالجة"), systemImage: audio.running ? "stop.fill" : "play.fill")
                         .font(.title3.bold()).frame(maxWidth: .infinity, minHeight: 56)
                         .foregroundStyle(Color.black).background(gold, in: RoundedRectangle(cornerRadius: 18))
                 }.buttonStyle(.plain)
                 Button { audio.set(.mute, audio.value(.mute) > 0.5 ? 0 : 1) } label: {
-                    Label(audio.value(.mute) > 0.5 ? "مكتوم" : "كتم", systemImage: "speaker.slash.fill")
+                    Label(audio.value(.mute) > 0.5 ? "السماعة مكتومة" : "كتم السماعة", systemImage: "speaker.slash.fill")
                         .font(.headline).frame(minWidth: 92, minHeight: 56)
                         .background(audio.value(.mute) > 0.5 ? Color.red.opacity(0.45) : surface, in: RoundedRectangle(cornerRadius: 18))
                 }.buttonStyle(.plain)
@@ -257,7 +259,7 @@ struct ContentView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     Text("اصنع مساحتك الصوتية").font(.title.bold())
-                    Text("١. وصّل سماعتك بالبلوتوث واخترها من مركز التحكم. قرّب ميكروفون الآيفون من العود، ثم اضغط ابدأ واسمح بالميكروفون.")
+                    Text("١. يمكنك التسجيل مباشرة بدون سماعة من صفحة التسجيل. للاستماع المباشر وصّل سماعة، ثم ابدأ المعالجة واسمح بالميكروفون.")
                     Text("٢. جرّب قاعة كبيرة للصدى القوي، أو فخم / ثقيل للامتلاء. ارفع تقوية الالتقاط تدريجيًا بزر +6 dB إذا كان الصوت ضعيفًا.")
                     Text("٣. قوة المؤثرات تغيّر كمية الصدى والحركة معًا. من صفحة المؤثرات اضبط طول الذيل وفاصل البداية، واضغط مرتين لضبط الصدى على إيقاعك.")
                     Text("مؤشر الالتقاط يقيس الصوت بعد التقوية الرقمية. التقوية ترفع الضجيج أيضًا ولا تصلح تشوّهًا حدث في الميكروفون. قرّب الهاتف واستخدم مستوى مناسبًا.")

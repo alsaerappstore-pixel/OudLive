@@ -131,5 +131,30 @@ int main() {
         assert(std::abs(sineRMS(dry,880)-sineRMS(wet,880))<1e-6);
         std::cout<<"PASS: global effects intensity zero removes all wet contributions\n";
     }
+    {
+        oud::DSP a,b; flat(a); flat(b); a.set(oud::Output,-30); a.set(oud::Mute,1);
+        a.prepare(48000); b.prepare(48000);
+        std::vector<float>x(48000),l(48000),r(48000),al(48000),ar(48000),bl(48000),br(48000);
+        for(size_t i=0;i<x.size();++i)x[i]=.05f*std::sin(2*oud::pi*440*i/48000.f);
+        a.process(x.data(),l.data(),r.data(),x.size(),al.data(),ar.data());
+        for(float v:l) assert(v==0);
+        b.process(x.data(),l.data(),r.data(),x.size(),bl.data(),br.data());
+        double energy=0;
+        for(size_t i=0;i<x.size();++i) { assert(std::abs(al[i]-bl[i])<1e-7f); energy+=al[i]*al[i]; }
+        assert(energy>1);
+        std::cout<<"PASS: recording stays audible and identical with monitor mute or reduced headphone level\n";
+    }
+    {
+        oud::DSP a,b; flat(a); flat(b); b.set(oud::RecordGain,6); a.prepare(48000); b.prepare(48000);
+        std::vector<float>x(12000,.01f),l(12000),r(12000),al(12000),ar(12000),bl(12000),br(12000);
+        a.set(oud::Bypass,1); b.set(oud::Bypass,1);
+        a.process(x.data(),l.data(),r.data(),x.size(),al.data(),ar.data());
+        b.process(x.data(),l.data(),r.data(),x.size(),bl.data(),br.data());
+        assert(bl.back()/al.back()>1.99f && bl.back()/al.back()<2.0f);
+        b.set(oud::Input,30); b.set(oud::RecordGain,18); std::fill(x.begin(),x.end(),1.f);
+        b.process(x.data(),l.data(),r.data(),x.size(),bl.data(),br.data());
+        for(float v:bl) assert(std::isfinite(v) && std::abs(v)<=.941f);
+        std::cout<<"PASS: separate recording gain amplifies correctly and limits excessive peaks\n";
+    }
     std::cout<<"All DSP checks passed. Device latency and iOS integration still require hardware testing.\n";
 }

@@ -4,6 +4,9 @@ import UIKit
 
 @MainActor
 final class AudioModel: ObservableObject {
+    @Published private(set) var monitoring = false
+    @Published private(set) var recordingLevel: Float = 0
+    @Published private(set) var recordingLimiting: Float = 0
     @Published private(set) var recording = false
     @Published private(set) var recordingPreparing = false
     @Published private(set) var recordingFinishing = false
@@ -21,7 +24,7 @@ final class AudioModel: ObservableObject {
     @Published private(set) var starting = false
     @Published private(set) var settings = SoundSettings()
     @Published private(set) var mode = SoundMode.oud
-    @Published var message = "وصّل سماعتك بالبلوتوث أو بالسلك، ثم ابدأ."
+    @Published var message = "يمكنك التسجيل دون سماعة، أو توصيل سماعة للاستماع المباشر."
     @Published private(set) var bluetoothOutput = false
     @Published private(set) var inputRoute = ""
     @Published private(set) var inputLevel: Float = 0
@@ -62,7 +65,8 @@ final class AudioModel: ObservableObject {
         savedFavorite = UserDefaults.standard.data(forKey: "OudLive.favorite.v2") != nil
         Timer.publish(every: 0.07, on: .main, in: .common).autoconnect().sink { [weak self] _ in
             guard let self, self.running else { return }
-            self.inputLevel = self.bridge.inputPeak; self.outputLevel = self.bridge.outputPeak
+            self.inputLevel = self.bridge.inputPeak; self.outputLevel = self.monitoring ? self.bridge.outputPeak : 0
+            self.recordingLevel = self.bridge.recordingPeak; self.recordingLimiting = self.bridge.recordingReduction
             self.limitingDB = self.bridge.gainReduction
             if self.recording, let start = self.recordingDate {
                 self.recordingSeconds = Int(Date().timeIntervalSince(start))
@@ -82,8 +86,13 @@ final class AudioModel: ObservableObject {
             guard let self else { return }
             // Ignore queued notifications caused by our own start configuration.
             // Stop only when the route actually differs from the one we started.
-            if self.running && (self.routeKey != self.activeRouteKey || !self.safeOutput) {
-                self.stop(); self.message = "تغيّر توصيل الصوت. تحقق من السماعة ثم اضغط ابدأ."
+            if !self.safeOutput { self.bridge.setMonitoringEnabled(false); self.monitoring = false }
+            if self.running && self.routeKey != self.activeRouteKey {
+                self.stop(); self.message = "تغيّر التوصيل. حُفظ التسجيل إن كان جاريًا؛ يمكنك البدء مجددًا مع السماعة أو بدونها."
+            }
+            if self.running {
+                self.monitoring = self.safeOutput
+                self.bridge.setMonitoringEnabled(self.monitoring)
             }
             self.refreshRoute()
         }.store(in: &subscriptions)
@@ -122,12 +131,13 @@ final class AudioModel: ObservableObject {
     func loadFavorite() {
         guard let data = UserDefaults.standard.data(forKey: "OudLive.favorite.v2"),
               var favorite = try? JSONDecoder().decode(SoundSettings.self, from: data), favorite.valid else { return }
+        favorite[.recordGain] = settings[.recordGain]
         favorite[.input] = settings[.input]; favorite[.output] = settings[.output]; favorite[.mute] = settings[.mute]
         settings = favorite; apply(); save()
     }
     func set(_ parameter: Parameter, _ value: Double) {
         settings[parameter] = value
-        if parameter != .mute && parameter != .bypass && parameter != .output && parameter != .input { settings.preset = "مخصص" }
+        if parameter != .mute && parameter != .bypass && parameter != .output && parameter != .input && parameter != .recordGain { settings.preset = "مخصص" }
         bridge.setParameter(parameter.rawValue, value: Float(settings.effective(parameter))); save()
     }
     func setEnabled(_ effect: Effect, _ enabled: Bool) {
@@ -142,9 +152,10 @@ final class AudioModel: ObservableObject {
         persistSounds(); message = "حُفظ الصوت باسم \(trimmed)."
     }
     func loadSound(_ sound: NamedSound) {
-        let input = settings[.input], output = settings[.output], mute = settings[.mute]
+        let input = settings[.input], output = settings[.output], mute = settings[.mute], recordGain = settings[.recordGain]
         save(); mode = sound.mode; settings = sound.settings; settings.preset = sound.name
         settings[.input] = input; settings[.output] = output; settings[.mute] = mute; settings[.bypass] = 0
+        settings[.recordGain] = recordGain
         apply(); save()
     }
     func deleteSound(_ id: UUID) { namedSounds.removeAll { $0.id == id }; persistSounds() }
@@ -152,16 +163,18 @@ final class AudioModel: ObservableObject {
         if let data = try? JSONEncoder().encode(namedSounds) { UserDefaults.standard.set(data, forKey: "OudLive.namedSounds.v1") }
     }
     func choosePreset(_ name: String) {
-        let input = settings[.input], output = settings[.output], mute = settings[.mute]
+        let input = settings[.input], output = settings[.output], mute = settings[.mute], recordGain = settings[.recordGain]
         settings = .preset(name, mode: mode)
         settings[.input] = input; settings[.output] = output; settings[.mute] = mute
+        settings[.recordGain] = recordGain
         apply(); save()
     }
     func chooseMode(_ newMode: SoundMode) {
         guard newMode != mode else { return }
-        let mute = settings[.mute], input = settings[.input], output = settings[.output]
+        let mute = settings[.mute], input = settings[.input], output = settings[.output], recordGain = settings[.recordGain]
         save(); mode = newMode; settings = mode == .oud ? saved.oud : saved.voice
         settings[.mute] = mute; settings[.input] = input; settings[.output] = output
+        settings[.recordGain] = recordGain
         apply(); save()
     }
     private func apply() {
@@ -195,21 +208,19 @@ final class AudioModel: ObservableObject {
             if !selectedInput.isEmpty, let port = session.availableInputs?.first(where: { $0.uid == selectedInput }) {
                 try session.setPreferredInput(port)
             } else {
-                let usingBluetooth = session.currentRoute.outputs.contains { $0.portType == .bluetoothA2DP }
                 let phoneMic = session.availableInputs?.first { $0.portType == .builtInMic }
-                try session.setPreferredInput(usingBluetooth ? phoneMic : nil)
+                let usbMic = session.availableInputs?.first { $0.portType == .usbAudio }
+                try session.setPreferredInput(usbMic ?? phoneMic)
             }
             refreshRoute()
-            guard safeOutput else {
-                stop(); message = "اختر سماعة Bluetooth من مركز التحكم، أو وصّل سماعة سلكية أو USB، ثم اضغط ابدأ. مكبر الآيفون غير مفعّل لتجنب الصفير."
-                return
-            }
+            monitoring = safeOutput
+            bridge.setMonitoringEnabled(monitoring)
             guard session.isInputAvailable else { stop(); message = "لا يوجد ميكروفون متاح."; return }
             // NSError convention imports the Objective-C method as a throwing Swift method.
             try bridge.start(withSampleRate: session.sampleRate)
             activeRouteKey = routeKey
             running = true; UIApplication.shared.isIdleTimerDisabled = true
-            message = bluetoothOutput
+            message = !monitoring ? "جاهز للتسجيل دون سماعة • مكبر الآيفون صامت، والمؤثرات محفوظة في التسجيل." : bluetoothOutput
                 ? "الصوت إلى سماعة البلوتوث • الالتقاط من \(inputRoute). يوجد تأخير من البلوتوث؛ السلك أسرع للعزف."
                 : "الصوت مباشر • ابدأ بمستوى منخفض وارفعه تدريجيًا."
         } catch {
@@ -219,7 +230,7 @@ final class AudioModel: ObservableObject {
     func stop() {
         if recording || recordingPreparing { finishRecording() }
         generation += 1; starting = false; bridge.stop(); running = false
-        inputLevel = 0; outputLevel = 0; limitingDB = 0; UIApplication.shared.isIdleTimerDisabled = false
+        inputLevel = 0; outputLevel = 0; limitingDB = 0; recordingLevel = 0; recordingLimiting = 0; monitoring = false; bridge.setMonitoringEnabled(false); UIApplication.shared.isIdleTimerDisabled = false
         try? session.setActive(false, options: .notifyOthersOnDeactivation)
     }
     private func refreshRoute() {
@@ -241,11 +252,20 @@ extension AudioModel {
             .filter { ["wav", "mp4"].contains($0.pathExtension.lowercased()) }.sorted { $0.lastPathComponent > $1.lastPathComponent }
     }
     func beginRecording(video: Bool, front: Bool) {
-        guard running, !recording, !recordingPreparing, !recordingFinishing else {
-            message = "ابدأ العزف أولًا وانتظر اكتمال حفظ التسجيل السابق."; return
+        guard !starting, !recording, !recordingPreparing, !recordingFinishing else {
+            message = "انتظر انتهاء التجهيز أو حفظ التسجيل السابق."; return
         }
         recordingPreparing = true; recordingGeneration += 1; let token = recordingGeneration
         Task {
+            if !running {
+                let allowed: Bool = await withCheckedContinuation { continuation in
+                    session.requestRecordPermission { continuation.resume(returning: $0) }
+                }
+                guard recordingGeneration == token, recordingPreparing else { return }
+                guard allowed else { recordingPreparing = false; message = "اسمح بالميكروفون من إعدادات الآيفون."; return }
+                start()
+                guard running else { recordingPreparing = false; return }
+            }
             if video {
                 let allowed = await AVCaptureDevice.requestAccess(for: .video)
                 guard recordingGeneration == token, recordingPreparing else { return }
@@ -285,7 +305,7 @@ extension AudioModel {
             recordingURL = url; self.cameraURL = cameraURL
             recordingDate = Date(); recordingSeconds = 0; recording = true; recordingPreparing = false
             camera?.begin()
-            message = cameraURL == nil ? "يسجّل الصوت المعالج الآن. الكتم ومستوى الخروج يؤثران في التسجيل." : "يسجّل الفيديو والصوت المعالج. أبقِ التطبيق مفتوحًا والهاتف عموديًا."
+            message = cameraURL == nil ? "يسجّل الصوت المعالج الآن. مستوى التسجيل مستقل عن مستوى السماعة وكتمها." : "يسجّل الفيديو والصوت المعالج. أبقِ التطبيق مفتوحًا والهاتف عموديًا."
         } catch {
             recordingPreparing = false; message = error.localizedDescription
             camera?.finish { _ in if let cameraURL { try? FileManager.default.removeItem(at: cameraURL) } }

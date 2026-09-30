@@ -11,8 +11,23 @@ struct RecordingView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             Text("سجّل عزفك").font(.title2.bold())
-            Text("يحفظ الصوت بعد المؤثرات، بما فيها التعديلات أثناء العزف. الكتم ومستوى الخروج يدخلان في التسجيل.")
+            Text("يسجّل بالمؤثرات ويحفظ على الجوال حتى بدون سماعة. مستوى السماعة وكتمها لا يؤثران في الملف.")
                 .font(.subheadline).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("مستوى التسجيل").font(.headline)
+                    Spacer()
+                    Text(String(format: "%.0f dB", audio.value(.recordGain))).monospacedDigit()
+                }
+                Slider(value: Binding(get: { audio.value(.recordGain) }, set: { audio.set(.recordGain, $0) }), in: Parameter.recordGain.range)
+                ProgressView(value: Double(min(1, max(0, (20 * log10(max(audio.recordingLevel, 0.00001)) + 60) / 60))))
+                    .tint(audio.recordingLimiting > 3 ? .orange : .green)
+                Text(audio.recordingLimiting > 3 ? "حماية التسجيل تعمل بقوة؛ خفّض مستوى التسجيل أو الالتقاط لتبقى نبرة الأوتار طبيعية." : "ارفع المستوى تدريجيًا. إذا كان الالتقاط ضعيفًا، قرّب الميكروفون من العود أولًا.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Button("عود صافي • نبرة طبيعية وصدى خفيف") { audio.choosePreset("عود صافي") }.buttonStyle(.bordered)
+                Text("يوقف الحركة والمضاعفة والضغط وتعديل النبرة؛ تبقى مساحة خفيفة يمكنك إطفاؤها من المؤثرات.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Picker("نوع التسجيل", selection: $video) {
                 Text("صوت WAV").tag(false); Text("فيديو مع الصوت").tag(true)
             }.pickerStyle(.segmented).disabled(busy)
@@ -36,8 +51,8 @@ struct RecordingView: View {
                       systemImage: audio.recording ? "stop.circle.fill" : "record.circle")
                     .font(.headline).frame(maxWidth: .infinity, minHeight: 54)
             }.buttonStyle(.borderedProminent).tint(.red)
-                .disabled(audio.recordingFinishing || (!audio.running && !audio.recordingPreparing))
-            if !audio.running { Text("اضغط «ابدأ العزف» أولًا ووصل سماعتك، ثم ابدأ التسجيل.").font(.caption) }
+                .disabled(audio.recordingFinishing || audio.starting)
+            if !audio.monitoring { Text("لا تحتاج سماعة للتسجيل. مكبر الآيفون صامت أثناء المعالجة لمنع الصفير؛ يمكنك سماع الملف بعد الحفظ.").font(.caption) }
             if audio.recordingFinishing { ProgressView("جارٍ حفظ التسجيل…") }
             Text("تسجيلاتي").font(.headline)
             if audio.recordings.isEmpty {

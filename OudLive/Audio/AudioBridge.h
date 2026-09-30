@@ -5,6 +5,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)startWithSampleRate:(double)sampleRate error:(NSError **)error;
 - (void)stop;
 - (void)setParameter:(NSInteger)parameter value:(float)value;
+- (void)setMonitoringEnabled:(BOOL)enabled;
+@property(nonatomic, readonly) float recordingPeak;
+@property(nonatomic, readonly) float recordingReduction;
 - (BOOL)beginRecordingAtURL:(NSURL *)url error:(NSError **)error;
 - (BOOL)finishRecording:(NSError **)error;
 @property(nonatomic, readonly) double recordingStartHostSeconds;

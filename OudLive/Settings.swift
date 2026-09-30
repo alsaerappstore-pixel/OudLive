@@ -10,9 +10,10 @@ enum Parameter: Int, CaseIterable {
     // Must match oud::Param in DSP.hpp.
     case input, output, low, mid, high, compression, reverb, delay
     case delayTime, feedback, modulation, modRate, flanger, doubler, bypass, mute
-    case decay, predelay, tone, makeup, intensity
+    case decay, predelay, tone, makeup, intensity, recordGain
     var range: ClosedRange<Double> {
         switch self {
+        case .recordGain: return -12...18
         case .input: return -24...30
         case .output: return -60...0
         case .low, .mid, .high: return -12...12
@@ -29,7 +30,8 @@ enum Parameter: Int, CaseIterable {
     var label: String {
         switch self {
         case .input: return "تقوية الالتقاط"
-        case .output: return "مستوى الخروج"
+        case .recordGain: return "مستوى التسجيل"
+        case .output: return "مستوى السماعة"
         case .low: return "دفء • 180 Hz"
         case .mid: return "حضور • 1.1 kHz"
         case .high: return "لمعان • 4.8 kHz"
@@ -52,7 +54,8 @@ enum Parameter: Int, CaseIterable {
     var explanation: String {
         switch self {
         case .input: return "يرفع صوت الميكروفون رقميًا؛ يرفع الضجيج أيضًا. قرّب الهاتف أولًا."
-        case .output: return "يضبط مستوى الصوت النهائي الذي تسمعه في السماعة."
+        case .recordGain: return "يضبط قوة الملف المحفوظ وحده. ارفعه تدريجيًا مع مراقبة مؤشر التسجيل."
+        case .output: return "يضبط الاستماع في السماعة فقط، ولا يخفض التسجيل."
         case .low: return "يزيد أو يقلل عمق الصوت ودفء الأوتار الغليظة."
         case .mid: return "يبرز جسم النغمة وحضور العود وسط الصوت."
         case .high: return "يتحكم بلمعان الصوت ووضوح ضربة الريشة."
@@ -74,7 +77,7 @@ enum Parameter: Int, CaseIterable {
     }
     func text(_ value: Double) -> String {
         switch self {
-        case .input, .output, .low, .mid, .high, .makeup: return String(format: "%.0f dB", value)
+        case .input, .output, .low, .mid, .high, .makeup, .recordGain: return String(format: "%.0f dB", value)
         case .delayTime, .predelay: return String(format: "%.0f ms", value)
         case .decay: return String(format: "%.1f s", value)
         case .modRate: return String(format: "%.1f Hz", value)
@@ -110,7 +113,7 @@ struct SoundSettings: Codable {
         return self[p]
     }
     var preset = "طبيعي"
-    var values: [Double] = [6,-9,0,0,0,0.25,0.24,0.12,320,0.32,0,0.7,0,0,0,0,2.4,22,0.5,4,1]
+    var values: [Double] = [6,-9,0,0,0,0.25,0.24,0.12,320,0.32,0,0.7,0,0,0,0,2.4,22,0.5,4,1,0]
     init() {}
     private enum CodingKeys: String, CodingKey { case preset, values, disabledEffects }
     init(from decoder: Decoder) throws {
@@ -120,6 +123,7 @@ struct SoundSettings: Codable {
         disabledEffects = try container.decodeIfPresent(Set<Effect>.self, forKey: .disabledEffects) ?? []
         // Preserve all v1 user settings; append only the new v2 controls.
         if values.count == 16 { values += [2.4,22,0.5,4,1] }
+        if values.count == 21 { values += [0] }
     }
     subscript(_ p: Parameter) -> Double {
         get { values[p.rawValue] }
@@ -133,6 +137,11 @@ struct SoundSettings: Codable {
     static func preset(_ name: String, mode: SoundMode) -> SoundSettings {
         var s = SoundSettings(); s.preset = name
         switch name {
+        case "عود صافي":
+            s[.reverb] = 0.14; s[.decay] = 1.3; s[.predelay] = 25
+            s[.delay] = 0; s[.modulation] = 0; s[.doubler] = 0
+            s[.compression] = 0; s[.makeup] = 0
+            s.disabledEffects = [.delay, .motion, .doubler, .eq, .compressor]
         case "كلاسيكي":
             s[.low] = 2; s[.high] = -2; s[.reverb] = 0.42; s[.compression] = 0.25
             s[.delay] = 0.14; s[.decay] = 2.8; s[.predelay] = 28; s[.tone] = 0.35
@@ -168,9 +177,10 @@ struct SoundSettings: Codable {
         }
         return s
     }
-    static let names = ["طبيعي", "كلاسيكي", "فخم / ثقيل", "حاد", "مشكل", "قاعة كبيرة", "تقاسيم", "طرب دافئ", "ريشة واضحة", "مسرح", "مساحة واسعة"]
+    static let names = ["عود صافي", "طبيعي", "كلاسيكي", "فخم / ثقيل", "حاد", "مشكل", "قاعة كبيرة", "تقاسيم", "طرب دافئ", "ريشة واضحة", "مسرح", "مساحة واسعة"]
     static func detail(_ name: String) -> String {
         switch name {
+        case "عود صافي": return "نبرة أصلية ومساحة خفيفة"
         case "تقاسيم": return "تفاصيل وزخارف حرة"
         case "طرب دافئ": return "نبرة ناعمة ورنين داكن"
         case "ريشة واضحة": return "بداية بارزة ومساحة خفيفة"

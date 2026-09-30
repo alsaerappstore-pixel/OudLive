@@ -4,7 +4,7 @@ let legacy = """
 {"preset":"مخصص","values":[12,-15,2,-1,3,0.3,0.4,0.2,350,0.3,0.1,0.7,0,0.2,1,0]}
 """
 let old = try JSONDecoder().decode(SoundSettings.self, from: Data(legacy.utf8))
-precondition(old.valid && old.values.count == 21)
+precondition(old.valid && old.values.count == 22)
 precondition(old[.input] == 12 && old[.output] == -15 && old[.bypass] == 1)
 precondition(old[.decay] == 2.4 && old[.intensity] == 1)
 let roundTrip = try JSONDecoder().decode(SoundSettings.self, from: JSONEncoder().encode(old))
@@ -46,3 +46,12 @@ precondition(RecordingTiming(audioStart: 0, videoStart: 2, audioDuration: 8, vid
 precondition(RecordingTiming(audioStart: 1, videoStart: 20, audioDuration: 8, videoDuration: 9) == nil)
 precondition(RecordingTiming(audioStart: .nan, videoStart: 2, audioDuration: 8, videoDuration: 9) == nil)
 print("PASS: media alignment trims early audio or video, keeps overlap, rejects missing or invalid timestamps")
+
+precondition(old[.recordGain] == 0)
+let clear = SoundSettings.preset("عود صافي", mode: .oud)
+precondition(!clear.enabled(.motion) && !clear.enabled(.doubler) && !clear.enabled(.compressor))
+precondition(clear.effective(.makeup) == 0 && clear.effective(.low) == 0)
+let v22 = "{\"preset\":\"طبيعي\",\"values\":[6,-9,0,0,0,0.25,0.24,0.12,320,0.32,0,0.7,0,0,0,0,2.4,22,0.5,4,1]}"
+let migrated = try JSONDecoder().decode(SoundSettings.self, from: Data(v22.utf8))
+precondition(migrated.valid && migrated[.recordGain] == 0 && migrated[.output] == -9)
+print("PASS: independent recording gain migrates v2.2 settings and clear oud disables pitch-modulating layers")
