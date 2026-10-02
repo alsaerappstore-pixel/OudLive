@@ -17,7 +17,7 @@ struct ContentView: View {
     private var surface: Color { theme.panel }
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 12) {
                 header
                 monitor
                 Picker("صفحة التحكم", selection: $page) {
@@ -56,7 +56,6 @@ struct ContentView: View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text("عود لايف").font(.largeTitle.bold()).foregroundStyle(gold)
-                Text(theme.subtitle).font(.subheadline).foregroundStyle(.secondary)
             }
             Spacer()
             Menu {
@@ -73,7 +72,7 @@ struct ContentView: View {
         }
     }
     private var monitor: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Label(audio.running ? "على الهواء" : "جاهز للعزف", systemImage: audio.running ? "waveform" : "waveform.circle")
                     .font(.headline).foregroundStyle(audio.running ? mint : gold)
@@ -92,20 +91,24 @@ struct ContentView: View {
                 Label("حماية القمم تعمل • خفّض الالتقاط أو تعويض المستوى إذا أصبح الصوت مضغوطًا.", systemImage: "waveform.badge.minus")
                     .font(.caption).foregroundStyle(gold)
             }
-            Text(audio.message).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            if page != 0 || audio.running || audio.starting || audio.message != "يمكنك التسجيل دون سماعة، أو توصيل سماعة للاستماع المباشر." {
+                Text(audio.message).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
         }.card()
     }
     private var performance: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            Picker("مصدر الأداء", selection: Binding(get: { audio.mode }, set: { audio.chooseMode($0) })) {
-                ForEach(SoundMode.allCases) { Text($0.title).tag($0) }
-            }.pickerStyle(.segmented)
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(audio.settings.preset).font(.title2.bold())
                     Text(SoundSettings.detail(audio.settings.preset)).font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
+                Menu {
+                    Picker("مصدر الأداء", selection: Binding(get: { audio.mode }, set: { audio.chooseMode($0) })) {
+                        ForEach(SoundMode.allCases) { Text($0.title).tag($0) }
+                    }
+                } label: { Text(audio.mode.title).font(.caption.bold()).frame(minHeight: 44) }
                 Button { showSave = true } label: { Label("حفظ", systemImage: "bookmark") }.buttonStyle(.bordered)
                 if audio.savedFavorite {
                     Button { audio.loadFavorite() } label: { Image(systemName: "bookmark.fill") }.buttonStyle(.bordered).accessibilityLabel("استعادة مفضلتي")
@@ -266,3 +269,4 @@ private struct AudioOutputPicker: UIViewRepresentable {
 private extension View {
     func card() -> some View { modifier(ThemedPanel()) }
 }
+

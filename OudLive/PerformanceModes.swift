@@ -75,7 +75,7 @@ struct PerformanceModes: View {
                         .background(theme.accent.opacity(audio.settings.preset == name ? 0.27 : 0.08), in: RoundedRectangle(cornerRadius: 8))
                 }
             }.buttonStyle(.plain)
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                 ForEach(effects, id: \.self) { effect in effectSwitch(effect, compact: false) }
             }
             if explanations { Text("الإضاءة تتبع مستوى الصوت المعالج للوحدات المفعّلة، وليست قياسًا منفصلًا لكل مؤثر.").font(.caption).foregroundStyle(.secondary) }
@@ -117,12 +117,12 @@ struct PerformanceModes: View {
                         .shadow(color: theme.accent.opacity(glow), radius: 4 + 14 * glow)
                 }
                 Text(effect.title).font(.headline)
-                if !compact && explanations { Text(effect.summary).font(.caption).foregroundStyle(.secondary) }
+                if !compact && explanations { Text(effect.summary).font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
                 Text(enabled ? "يعمل" : "متوقف").font(.caption.bold())
                 if !compact {
                     Capsule().fill(theme.accent.opacity(active ? 0.18 + glow * 0.82 : 0.06)).frame(height: 4)
                 }
-            }.frame(maxWidth: .infinity, minHeight: compact ? 72 : 112).padding(compact ? 10 : 16)
+            }.frame(maxWidth: .infinity, minHeight: compact ? 72 : 100).padding(10)
                 .foregroundStyle(enabled ? theme.accent : theme.ink.opacity(0.55))
                 .background(theme.background, in: RoundedRectangle(cornerRadius: compact ? 6 : 12))
                 .overlay(RoundedRectangle(cornerRadius: compact ? 6 : 12).strokeBorder(theme.accent.opacity(enabled ? 0.6 : 0.12), lineWidth: 1))
@@ -152,3 +152,4 @@ struct PerformanceModes: View {
         }.modifier(ThemedPanel())
     }
 }
+
