@@ -9,7 +9,6 @@ struct OudLiveApp: App {
             ContentView(audio: audio)
                 .environment(\.layoutDirection, .rightToLeft)
                 .environment(\.locale, Locale(identifier: "ar"))
-                .preferredColorScheme(.dark)
         }
     }
 }

@@ -1,9 +1,45 @@
 import AVFoundation
 import Combine
 import UIKit
+import Photos
 
 @MainActor
 final class AudioModel: ObservableObject {
+    @Published private(set) var savingToPhotos: URL?
+    @Published var photosNotice: String?
+    func saveVideoToPhotos(_ url: URL) {
+        guard savingToPhotos == nil, !recording, !recordingPreparing, !recordingFinishing,
+              recordings.contains(url), url.pathExtension.lowercased() == "mp4",
+              FileManager.default.fileExists(atPath: url.path) else { return }
+        savingToPhotos = url
+        Task {
+            defer { savingToPhotos = nil }
+            let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
+            guard status == .authorized || status == .limited else {
+                photosNotice = "لم يُسمح بالحفظ في الصور. من إعدادات الآيفون افتح عود لايف ثم الصور واسمح بإضافة الصور. الفيديو ما زال محفوظًا في تسجيلاتي."
+                return
+            }
+            do {
+                try await PHPhotoLibrary.shared().performChanges {
+                    PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url)
+                }
+                photosNotice = "تم حفظ الفيديو بصوت التأثيرات في تطبيق الصور. النسخة الأصلية ما زالت في تسجيلاتي."
+            } catch {
+                photosNotice = "تعذّر الحفظ في الصور: \(error.localizedDescription). الفيديو ما زال في تسجيلاتي؛ يمكنك إعادة المحاولة أو حفظه في الملفات."
+            }
+        }
+    }
+    @Published private(set) var comparison: NamedSound?
+    @Published private(set) var comparingA = false
+    func captureComparison() {
+        comparison = NamedSound(name: settings.preset, mode: mode, settings: settings)
+        comparingA = false
+    }
+    func swapComparison() {
+        guard let target = comparison else { return }
+        let current = NamedSound(name: settings.preset, mode: mode, settings: settings)
+        loadSound(target); comparison = current; comparingA.toggle()
+    }
     @Published private(set) var monitoring = false
     @Published private(set) var recordingLevel: Float = 0
     @Published private(set) var recordingLimiting: Float = 0

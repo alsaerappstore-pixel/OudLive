@@ -4,13 +4,14 @@ import AVKit
 @MainActor
 struct RecordingView: View {
     @ObservedObject var audio: AudioModel
+    @Environment(\.oudTheme) private var theme
     @State private var video = false
     @State private var front = false
     @State private var playing: RecordingItem?
     @State private var saving: RecordingItem?
     @State private var deleting: URL?
     @State private var confirmDelete = false
-    private var busy: Bool { audio.recording || audio.recordingPreparing || audio.recordingFinishing }
+    private var busy: Bool { audio.recording || audio.recordingPreparing || audio.recordingFinishing || audio.savingToPhotos != nil }
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             Text("سجّل عزفك").font(.title2.bold())
@@ -77,18 +78,32 @@ struct RecordingView: View {
                     Spacer(minLength: 0)
                 }
                 HStack(spacing: 12) {
-                    Button { saving = RecordingItem(url: url) } label: { Label("حفظ", systemImage: "folder") }
+                    Menu {
+                        if url.pathExtension.lowercased() == "mp4" {
+                            Button { audio.saveVideoToPhotos(url) } label: { Label("حفظ في الصور", systemImage: "photo.on.rectangle") }
+                        }
+                        Button { saving = RecordingItem(url: url) } label: { Label("حفظ في الملفات", systemImage: "folder") }
+                    } label: { Label("حفظ", systemImage: "square.and.arrow.down") }
                     ShareLink(item: url) { Label("مشاركة", systemImage: "square.and.arrow.up") }
                     Spacer(minLength: 0)
                     Button(role: .destructive) { deleting = url; confirmDelete = true } label: { Label("حذف", systemImage: "trash") }
                 }.buttonStyle(.bordered).disabled(busy)
-                }.padding(12).background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
+                if url.pathExtension.lowercased() == "mp4" {
+                    Button { audio.saveVideoToPhotos(url) } label: {
+                        Label(audio.savingToPhotos == url ? "جارٍ الحفظ في الصور…" : "حفظ في الصور", systemImage: "photo.on.rectangle")
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                    }.buttonStyle(.borderedProminent).disabled(busy)
+                }
+                }.padding(12).background(theme.panel, in: RoundedRectangle(cornerRadius: theme.radius))
             }
             Text("الفيديو تجريبي: جرّب مقطعًا قصيرًا للتحقق من تزامن الصوت والصورة على جهازك. تأخير سماعة البلوتوث في الاستماع لا يُضاف عمدًا إلى التسجيل.")
                 .font(.caption).foregroundStyle(.secondary)
         }
         .sheet(item: $playing) { item in RecordingPlayback(url: item.url) }
         .sheet(item: $saving) { item in RecordingSavePicker(url: item.url) }
+        .alert("الحفظ في الصور", isPresented: Binding(get: { audio.photosNotice != nil }, set: { if !$0 { audio.photosNotice = nil } })) {
+            Button("تم") { audio.photosNotice = nil }
+        } message: { Text(audio.photosNotice ?? "") }
         .alert("حذف التسجيل؟", isPresented: $confirmDelete) {
             Button("حذف", role: .destructive) {
                 if let url = deleting { audio.deleteRecording(url) }

@@ -8,13 +8,13 @@
 <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
 <key>CFBundleName</key><string>$(PRODUCT_NAME)</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>2.4.0</string>
-<key>CFBundleVersion</key><string>7</string>
+<key>CFBundleShortVersionString</key><string>3.0.0</string>
+<key>CFBundleVersion</key><string>8</string>
 <key>CFBundleLocalizations</key><array><string>ar</string></array>
 <key>LSRequiresIPhoneOS</key><true/>
 <key>NSMicrophoneUsageDescription</key><string>نستخدم الميكروفون لمعالجة صوت العود أو صوتك وسماعه مباشرة في السماعة. يمكنك تسجيل الصوت المعالج محليًا عند الضغط على زر التسجيل؛ لا نرفعه تلقائيًا.</string>
 <key>NSCameraUsageDescription</key><string>نستخدم الكاميرا عند اختيار تسجيل فيديو لعزفك مع صوت المؤثرات.</string>
-<key>NSPhotoLibraryAddUsageDescription</key><string>لحفظ الفيديو في الصور عندما تختار ذلك من المشاركة.</string>
+<key>NSPhotoLibraryAddUsageDescription</key><string>نحتاج إذن إضافة الفيديو إلى تطبيق الصور عندما تضغط حفظ في الصور. لا نقرأ مكتبة صورك.</string>
 <key>UIFileSharingEnabled</key><true/>
 <key>LSSupportsOpeningDocumentsInPlace</key><true/>
 <key>UIBackgroundModes</key><array><string>audio</string></array>

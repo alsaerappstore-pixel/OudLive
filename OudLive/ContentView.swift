@@ -1,10 +1,6 @@
 import SwiftUI
 import AVKit
 
-private let gold = Color(red: 0.91, green: 0.75, blue: 0.47)
-private let mint = Color(red: 0.39, green: 0.83, blue: 0.74)
-private let surface = Color(red: 0.10, green: 0.13, blue: 0.14)
-
 @MainActor
 struct ContentView: View {
     @ObservedObject var audio: AudioModel
@@ -12,6 +8,13 @@ struct ContentView: View {
     @State private var showHelp = false
     @State private var showSave = false
     @State private var soundName = ""
+    @AppStorage("OudLive.theme") private var themeRaw = AppTheme.studio.rawValue
+    @AppStorage("OudLive.reactiveLights") private var reactiveLights = true
+    @AppStorage("OudLive.showExplanations") private var explanations = true
+    private var theme: AppTheme { AppTheme(rawValue: themeRaw) ?? .studio }
+    private var gold: Color { theme.accent }
+    private var mint: Color { theme == .simple ? theme.accent : Color(red: 0.2, green: 0.85, blue: 0.72) }
+    private var surface: Color { theme.panel }
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -24,11 +27,13 @@ struct ContentView: View {
                 if page == 1 { effects }
                 if page == 2 { connection }
                 if page == 3 { RecordingView(audio: audio) }
-                Text("عود لايف 2.4  •  معالجة وتسجيل محلي")
+                Text("عود لايف 3.0  •  معالجة وتسجيل محلي")
                     .font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity)
             }.padding(20).frame(maxWidth: 740).frame(maxWidth: .infinity)
         }
-        .background(Color(red: 0.035, green: 0.055, blue: 0.06))
+        .background(theme.background)
+        .foregroundStyle(theme.ink)
+        .preferredColorScheme(theme == .simple ? .light : .dark)
         .tint(gold)
         .safeAreaInset(edge: .bottom) { transport }
         .sheet(isPresented: $showHelp) { help }
@@ -37,8 +42,10 @@ struct ContentView: View {
             Button("حفظ") { audio.saveSound(soundName); soundName = "" }
             Button("إلغاء", role: .cancel) {}
         } message: { Text("يحفظ المؤثرات ومفاتيح تشغيلها لوضع العود أو الصوت البشري.") }
+        .environment(\.oudTheme, theme)
         .onAppear {
             #if DEBUG
+            for option in AppTheme.allCases where ProcessInfo.processInfo.arguments.contains("--theme-" + option.rawValue) { themeRaw = option.rawValue }
             if ProcessInfo.processInfo.arguments.contains("--preview-effects") { page = 1 }
             if ProcessInfo.processInfo.arguments.contains("--preview-connection") { page = 2 }
             if ProcessInfo.processInfo.arguments.contains("--preview-recording") { page = 3 }
@@ -49,9 +56,17 @@ struct ContentView: View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text("عود لايف").font(.largeTitle.bold()).foregroundStyle(gold)
-                Text("مساحة أكبر. تفاصيل أوضح.").font(.subheadline).foregroundStyle(.secondary)
+                Text(theme.subtitle).font(.subheadline).foregroundStyle(.secondary)
             }
             Spacer()
+            Menu {
+                Picker("شكل التطبيق", selection: $themeRaw) {
+                    ForEach(AppTheme.allCases) { option in Label(option.title, systemImage: option.icon).tag(option.rawValue) }
+                }
+                Toggle("إضاءة تتفاعل مع الصوت", isOn: $reactiveLights)
+                Toggle("شرح الخيارات", isOn: $explanations)
+            } label: { Label(theme.title, systemImage: theme.icon).font(.subheadline.bold()).frame(minHeight: 44) }
+            .accessibilityLabel("شكل التطبيق: " + theme.title)
             Button { showHelp = true } label: {
                 Image(systemName: "questionmark.circle").font(.title2).frame(width: 44, height: 44)
             }.accessibilityLabel("دليل العزف")
@@ -67,8 +82,11 @@ struct ContentView: View {
                 AudioOutputPicker().frame(width: 44, height: 44).accessibilityLabel("اختيار السماعة")
             }
             meter("التقاط", value: audio.inputLevel)
-            meter("سماعة", value: audio.outputLevel)
-            meter("تسجيل", value: audio.recordingLevel)
+            if theme != .simple && page != 0 {
+                meter("تسجيل", value: audio.recordingLevel)
+                meter("سماعة", value: audio.outputLevel)
+            }
+            if audio.recording { Label("يسجّل • \(audio.recordingSeconds) ث", systemImage: "record.circle.fill").foregroundStyle(.red).font(.caption.bold()) }
             if audio.running && !audio.monitoring { Text("التسجيل متاح بدون سماعة • الاستماع المباشر متوقف").font(.caption).foregroundStyle(gold) }
             if audio.limitingDB > 2 {
                 Label("حماية القمم تعمل • خفّض الالتقاط أو تعويض المستوى إذا أصبح الصوت مضغوطًا.", systemImage: "waveform.badge.minus")
@@ -93,12 +111,6 @@ struct ContentView: View {
                     Button { audio.loadFavorite() } label: { Image(systemName: "bookmark.fill") }.buttonStyle(.bordered).accessibilityLabel("استعادة مفضلتي")
                 }
             }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
-                    ForEach(SoundSettings.names, id: \.self) { name in presetButton(name).frame(width: 175) }
-                }
-            }
-            Text("اسحب الألوان لاختيار طابع عزفك").font(.caption).foregroundStyle(.secondary)
             if !audio.namedSounds.isEmpty {
                 Menu {
                     ForEach(audio.namedSounds) { sound in
@@ -111,36 +123,8 @@ struct ContentView: View {
                     }
                 } label: { Label("أصواتي المحفوظة", systemImage: "bookmark.fill").frame(minHeight: 44) }
             }
-            VStack(spacing: 18) {
-                heading("التحكم السريع", icon: "slider.horizontal.3")
-                control(.input, accent: mint)
-                HStack {
-                    Text("قرّب الآيفون من العود أولًا").font(.caption).foregroundStyle(.secondary)
-                    Spacer()
-                    Button("تقوية +6 dB") { audio.boostInput() }.buttonStyle(.bordered).disabled(audio.value(.input) >= 30)
-                }
-                control(.reverb); control(.intensity); control(.output, accent: mint)
-            }.card()
-            Button { page = 1 } label: {
-                HStack { Text("اضبط ذيل الصدى والإيقاع والتفاصيل"); Spacer(); Image(systemName: "slider.horizontal.3") }
-                    .font(.subheadline).frame(minHeight: 48)
-            }
+            PerformanceModes(audio: audio, openEffects: { page = 1 }, openRecording: { page = 3 })
         }
-    }
-    private func presetButton(_ name: String) -> some View {
-        let selected = audio.settings.preset == name
-        return Button { audio.choosePreset(name) } label: {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text(name).font(.headline)
-                    Spacer(minLength: 2)
-                    if selected { Image(systemName: "checkmark.circle.fill") }
-                }
-                Text(SoundSettings.detail(name)).font(.caption).opacity(0.8)
-            }.frame(maxWidth: .infinity, minHeight: 70, alignment: .leading).padding(14)
-                .foregroundStyle(selected ? Color.black : Color.white)
-                .background(selected ? gold : surface, in: RoundedRectangle(cornerRadius: 18))
-        }.buttonStyle(.plain).accessibilityAddTraits(selected ? .isSelected : [])
     }
     private var effects: some View {
         VStack(spacing: 18) {
@@ -212,7 +196,7 @@ struct ContentView: View {
                 Button { audio.toggle() } label: {
                     Label(audio.starting ? "إلغاء" : (audio.running ? "إيقاف" : "ابدأ المعالجة"), systemImage: audio.running ? "stop.fill" : "play.fill")
                         .font(.title3.bold()).frame(maxWidth: .infinity, minHeight: 56)
-                        .foregroundStyle(Color.black).background(gold, in: RoundedRectangle(cornerRadius: 18))
+                        .foregroundStyle(theme.onAccent).background(gold, in: RoundedRectangle(cornerRadius: theme.radius))
                 }.buttonStyle(.plain)
                 Button { audio.set(.mute, audio.value(.mute) > 0.5 ? 0 : 1) } label: {
                     Label(audio.value(.mute) > 0.5 ? "السماعة مكتومة" : "كتم السماعة", systemImage: "speaker.slash.fill")
@@ -234,23 +218,16 @@ struct ContentView: View {
             }
         }.accessibilityLabel("تفعيل \(title)")
     }
-    private func control(_ p: Parameter, accent: Color = gold) -> some View {
-        VStack(spacing: 4) {
-            HStack {
-                Text(p.label).font(.subheadline); Spacer()
-                Text(p.text(audio.value(p))).font(.subheadline.monospacedDigit().bold()).foregroundStyle(accent).environment(\.layoutDirection, .leftToRight)
-            }
-            Text(p.explanation).font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading).fixedSize(horizontal: false, vertical: true)
-            Slider(value: Binding(get: { audio.value(p) }, set: { audio.set(p, $0) }), in: p.range)
-                .tint(accent).frame(minHeight: 44).accessibilityLabel(p.label).accessibilityValue(p.text(audio.value(p)))
-        }
+    private func control(_ p: Parameter) -> some View {
+        ThemeParameterControl(audio: audio, parameter: p)
     }
     private func meter(_ label: String, value: Float) -> some View {
         let decibels = 20 * log10(max(value, 0.00001))
         let normalized = Double(max(0, min(1, (decibels + 60) / 60)))
         return HStack(spacing: 10) {
             Text(label).font(.caption).frame(width: 42, alignment: .leading)
-            ProgressView(value: normalized).tint(value > 0.9 ? .orange : mint)
+            if theme == .simple { ProgressView(value: normalized).tint(value > 0.9 ? .orange : mint) }
+            else { SignalLED(level: value, tint: mint, lights: reactiveLights) }
             Text(value < 0.0001 ? "—" : String(format: "%.0f dB", decibels)).font(.caption.monospacedDigit()).foregroundStyle(.secondary).frame(width: 58).environment(\.layoutDirection, .leftToRight)
         }.accessibilityElement(children: .ignore).accessibilityLabel(label).accessibilityValue(String(format: "%.0f ديسيبل", decibels))
     }
@@ -259,6 +236,8 @@ struct ContentView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     Text("اصنع مساحتك الصوتية").font(.title.bold())
+                    Text("من زر الشكل أعلى الشاشة اختر استوديو للمقابض الدقيقة، بسيط للأصوات بضغطة، أو مسرح للمفاتيح الكبيرة. كل الأشكال تصل إلى المؤثرات والتسجيل والتوصيل. تغيير الشكل لا يغيّر الصوت.")
+                    Text("إضاءة المسرح تتبع مستوى الصوت المعالج مع حالة المؤثر؛ ليست مقياسًا منفصلًا لكل وحدة. يمكنك إطفاء الوهج وإخفاء الشروح من قائمة الشكل. المقابض تُضبط بالسحب لأعلى وأسفل أو عبر شريط التحكم في صفحة المؤثرات.")
                     Text("١. يمكنك التسجيل مباشرة بدون سماعة من صفحة التسجيل. للاستماع المباشر وصّل سماعة، ثم ابدأ المعالجة واسمح بالميكروفون.")
                     Text("٢. جرّب قاعة كبيرة للصدى القوي، أو فخم / ثقيل للامتلاء. ارفع تقوية الالتقاط تدريجيًا بزر +6 dB إذا كان الصوت ضعيفًا.")
                     Text("٣. قوة المؤثرات تغيّر كمية الصدى والحركة معًا. من صفحة المؤثرات اضبط طول الذيل وفاصل البداية، واضغط مرتين لضبط الصدى على إيقاعك.")
@@ -273,16 +252,17 @@ struct ContentView: View {
 }
 
 private struct AudioOutputPicker: UIViewRepresentable {
+    @Environment(\.oudTheme) private var theme
     func makeUIView(context: Context) -> AVRoutePickerView {
         let view = AVRoutePickerView(frame: .zero)
         view.prioritizesVideoDevices = false
-        view.tintColor = UIColor(red: 0.91, green: 0.75, blue: 0.47, alpha: 1)
+        view.tintColor = UIColor(theme.accent)
         view.activeTintColor = UIColor(red: 0.39, green: 0.83, blue: 0.74, alpha: 1)
         return view
     }
-    func updateUIView(_ uiView: AVRoutePickerView, context: Context) {}
+    func updateUIView(_ uiView: AVRoutePickerView, context: Context) { uiView.tintColor = UIColor(theme.accent) }
 }
 
 private extension View {
-    func card() -> some View { padding(18).frame(maxWidth: .infinity, alignment: .leading).background(surface, in: RoundedRectangle(cornerRadius: 22)) }
+    func card() -> some View { modifier(ThemedPanel()) }
 }
