@@ -11,10 +11,12 @@ struct ContentView: View {
     @AppStorage("OudLive.theme") private var themeRaw = AppTheme.studio.rawValue
     @AppStorage("OudLive.reactiveLights") private var reactiveLights = true
     @AppStorage("OudLive.showExplanations") private var explanations = true
+    @AppStorage("OudLive.palette") private var paletteRaw = AppPalette.original.rawValue
+    private var palette: AppPalette { AppPalette(rawValue: paletteRaw) ?? .original }
     private var theme: AppTheme { AppTheme(rawValue: themeRaw) ?? .studio }
-    private var gold: Color { theme.accent }
-    private var mint: Color { theme == .simple ? theme.accent : Color(red: 0.2, green: 0.85, blue: 0.72) }
-    private var surface: Color { theme.panel }
+    private var gold: Color { palette.accent(theme) }
+    private var mint: Color { theme == .simple || palette != .original ? palette.accent(theme) : Color(red: 0.2, green: 0.85, blue: 0.72) }
+    private var surface: Color { palette.panel(theme) }
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
@@ -27,11 +29,11 @@ struct ContentView: View {
                 if page == 1 { effects }
                 if page == 2 { connection }
                 if page == 3 { RecordingView(audio: audio) }
-                Text("عود لايف 3.1  •  معالجة وتسجيل محلي")
+                Text("عود لايف 3.2  •  معالجة وتسجيل محلي")
                     .font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity)
             }.padding(20).frame(maxWidth: 740).frame(maxWidth: .infinity)
         }
-        .background(theme.background)
+        .background(palette.background(theme))
         .foregroundStyle(theme.ink)
         .preferredColorScheme(theme == .simple ? .light : .dark)
         .tint(gold)
@@ -43,8 +45,10 @@ struct ContentView: View {
             Button("إلغاء", role: .cancel) {}
         } message: { Text("يحفظ المؤثرات ومفاتيح تشغيلها لوضع العود أو الصوت البشري.") }
         .environment(\.oudTheme, theme)
+        .environment(\.oudPalette, palette)
         .onAppear {
             #if DEBUG
+            for option in AppPalette.allCases where ProcessInfo.processInfo.arguments.contains("--palette-" + option.rawValue) { paletteRaw = option.rawValue }
             for option in AppTheme.allCases where ProcessInfo.processInfo.arguments.contains("--theme-" + option.rawValue) { themeRaw = option.rawValue }
             if ProcessInfo.processInfo.arguments.contains("--preview-effects") { page = 1 }
             if ProcessInfo.processInfo.arguments.contains("--preview-connection") { page = 2 }
@@ -61,6 +65,9 @@ struct ContentView: View {
             Menu {
                 Picker("شكل التطبيق", selection: $themeRaw) {
                     ForEach(AppTheme.allCases) { option in Label(option.title, systemImage: option.icon).tag(option.rawValue) }
+                }
+                Picker("ألوان التطبيق", selection: $paletteRaw) {
+                    ForEach(AppPalette.allCases) { option in Text(option.title).tag(option.rawValue) }
                 }
                 Toggle("إضاءة تتفاعل مع الصوت", isOn: $reactiveLights)
                 Toggle("شرح الخيارات", isOn: $explanations)
@@ -208,7 +215,8 @@ struct ContentView: View {
                 }.buttonStyle(.plain)
             }
             Toggle("مقارنة بالصوت الأصلي", isOn: Binding(get: { audio.value(.bypass) > 0.5 }, set: { audio.set(.bypass, $0 ? 1 : 0) })).font(.footnote)
-        }.padding(.horizontal, 20).padding(.vertical, 12).background(.ultraThinMaterial)
+            CopyrightFooter()
+        }.padding(.horizontal, 20).padding(.vertical, 8).background(.ultraThinMaterial)
     }
     private func heading(_ title: String, icon: String) -> some View {
         Label(title, systemImage: icon).font(.headline).foregroundStyle(gold).frame(maxWidth: .infinity, alignment: .leading)
@@ -250,22 +258,25 @@ struct ContentView: View {
                     Text("تحفظ الإعدادات لكل وضع، ويمكن حفظ لونك المفضل. Auto‑Tune غير متاح. زر المقارنة يتجاوز المؤثرات مع بقاء كسب الإدخال والخروج والكتم وحماية القمم.")
                 }.padding(24)
             }.toolbar { Button("تم") { showHelp = false } }.navigationTitle("دليل العزف")
+            .safeAreaInset(edge: .bottom) { CopyrightFooter().background(.ultraThinMaterial) }
         }.environment(\.layoutDirection, .rightToLeft)
     }
 }
 
 private struct AudioOutputPicker: UIViewRepresentable {
     @Environment(\.oudTheme) private var theme
+    @Environment(\.oudPalette) private var palette
     func makeUIView(context: Context) -> AVRoutePickerView {
         let view = AVRoutePickerView(frame: .zero)
         view.prioritizesVideoDevices = false
-        view.tintColor = UIColor(theme.accent)
+        view.tintColor = UIColor(palette.accent(theme))
         view.activeTintColor = UIColor(red: 0.39, green: 0.83, blue: 0.74, alpha: 1)
         return view
     }
-    func updateUIView(_ uiView: AVRoutePickerView, context: Context) { uiView.tintColor = UIColor(theme.accent) }
+    func updateUIView(_ uiView: AVRoutePickerView, context: Context) { uiView.tintColor = UIColor(palette.accent(theme)) }
 }
 
 private extension View {
     func card() -> some View { modifier(ThemedPanel()) }
 }
+

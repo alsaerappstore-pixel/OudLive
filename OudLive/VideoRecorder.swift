@@ -138,6 +138,8 @@ enum RecordingExport {
             context.textPosition = CGPoint(x: (720 - width) / 2, y: y); CTLineDraw(line, context)
         }
         title("عود لايف", size: 62, y: 650); title("تسجيل صوتي", size: 30, y: 570)
+        title("ياسر الغامدي", size: 38, y: 480)
+        title("جميع الحقوق محفوظة © ياسر الغامدي", size: 22, y: 120)
         CVPixelBufferUnlockBaseAddress(buffer, [])
         guard writer.startWriting() else { throw writer.error ?? VideoRecorder.error("تعذّر بدء التحويل.") }
         writer.startSession(atSourceTime: .zero)
@@ -186,6 +188,9 @@ enum RecordingExport {
             throw VideoRecorder.error("تعذّر تشغيل دمج الفيديو.")
         }
         exporter.outputURL = destination; exporter.outputFileType = .mp4
+        let credit = AVMutableMetadataItem()
+        credit.identifier = .commonIdentifierCopyrights; credit.value = "جميع الحقوق محفوظة © ياسر الغامدي" as NSString
+        exporter.metadata = [credit]
         exporter.shouldOptimizeForNetworkUse = true
         await exporter.export()
         guard exporter.status == .completed else { throw exporter.error ?? VideoRecorder.error("لم يكتمل دمج الفيديو. الصوت محفوظ.") }

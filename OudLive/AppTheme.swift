@@ -13,6 +13,49 @@ enum AppTheme: String, CaseIterable, Identifiable {
     var onAccent: Color { self == .simple ? .white : .black }
     var radius: CGFloat { self == .simple ? 26 : (self == .studio ? 12 : 16) }
 }
+enum AppPalette: String, CaseIterable, Identifiable {
+    case original, gold, emerald, sapphire, violet, ruby, rose, ice, copper
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .original: return "ألوان الشكل الأصلية"
+        case .gold: return "ذهبي ملكي"
+        case .emerald: return "أخضر زمردي"
+        case .sapphire: return "أزرق ياقوتي"
+        case .violet: return "بنفسجي"
+        case .ruby: return "أحمر ياقوتي"
+        case .rose: return "وردي"
+        case .ice: return "فيروزي"
+        case .copper: return "نحاسي"
+        }
+    }
+    private var hue: Double {
+        switch self { case .original, .gold: return 0.12; case .emerald: return 0.40; case .sapphire: return 0.60; case .violet: return 0.75; case .ruby: return 0.98; case .rose: return 0.91; case .ice: return 0.51; case .copper: return 0.065 }
+    }
+    func accent(_ theme: AppTheme) -> Color {
+        if self == .original { return theme.accent }
+        return Color(hue: hue, saturation: theme == .simple ? 0.82 : 0.52, brightness: theme == .simple ? 0.43 : 1)
+    }
+    func background(_ theme: AppTheme) -> Color {
+        self == .original ? theme.background : Color(hue: hue, saturation: theme == .simple ? 0.035 : 0.32, brightness: theme == .simple ? 0.99 : 0.075)
+    }
+    func panel(_ theme: AppTheme) -> Color {
+        self == .original ? theme.panel : Color(hue: hue, saturation: theme == .simple ? 0.08 : 0.30, brightness: theme == .simple ? 0.95 : 0.14)
+    }
+}
+private struct OudPaletteKey: EnvironmentKey { static let defaultValue = AppPalette.original }
+extension EnvironmentValues {
+    var oudPalette: AppPalette { get { self[OudPaletteKey.self] } set { self[OudPaletteKey.self] = newValue } }
+}
+struct CopyrightFooter: View {
+    var body: some View {
+        Text("جميع الحقوق محفوظة © ياسر الغامدي")
+            .font(.caption2).foregroundStyle(.secondary)
+            .multilineTextAlignment(.center).frame(maxWidth: .infinity).padding(.vertical, 4)
+            .environment(\.layoutDirection, .rightToLeft)
+    }
+}
+
 private struct OudThemeKey: EnvironmentKey { static let defaultValue = AppTheme.studio }
 extension EnvironmentValues {
     var oudTheme: AppTheme { get { self[OudThemeKey.self] } set { self[OudThemeKey.self] = newValue } }
@@ -20,10 +63,11 @@ extension EnvironmentValues {
 
 struct ThemedPanel: ViewModifier {
     @Environment(\.oudTheme) private var theme
+    @Environment(\.oudPalette) private var palette
     func body(content: Content) -> some View {
         content.padding(16).frame(maxWidth: .infinity, alignment: .leading)
-            .background(theme.panel, in: RoundedRectangle(cornerRadius: theme.radius))
-            .overlay(RoundedRectangle(cornerRadius: theme.radius).strokeBorder(theme.accent.opacity(theme == .stage ? 0.24 : 0.08), lineWidth: 1))
+            .background(palette.panel(theme), in: RoundedRectangle(cornerRadius: theme.radius))
+            .overlay(RoundedRectangle(cornerRadius: theme.radius).strokeBorder(palette.accent(theme).opacity(theme == .stage ? 0.24 : 0.08), lineWidth: 1))
     }
 }
 
@@ -52,6 +96,7 @@ struct RotaryControl: View {
     let parameter: Parameter
     var diameter: CGFloat = 78
     @Environment(\.oudTheme) private var theme
+    @Environment(\.oudPalette) private var palette
     @State private var dragStart: Double?
     private var normalized: Double { (audio.value(parameter) - parameter.range.lowerBound) / (parameter.range.upperBound - parameter.range.lowerBound) }
     private func nudge(_ direction: Double) {
@@ -60,11 +105,11 @@ struct RotaryControl: View {
     }
     var body: some View {
         ZStack {
-            Circle().trim(from: 0.12, to: 0.88).stroke(theme.accent.opacity(0.14), style: StrokeStyle(lineWidth: 5, lineCap: .round)).rotationEffect(.degrees(90))
-            Circle().trim(from: 0.12, to: 0.12 + 0.76 * normalized).stroke(theme.accent, style: StrokeStyle(lineWidth: 5, lineCap: .round)).rotationEffect(.degrees(90))
-            Circle().fill(theme.background).padding(9)
+            Circle().trim(from: 0.12, to: 0.88).stroke(palette.accent(theme).opacity(0.14), style: StrokeStyle(lineWidth: 5, lineCap: .round)).rotationEffect(.degrees(90))
+            Circle().trim(from: 0.12, to: 0.12 + 0.76 * normalized).stroke(palette.accent(theme), style: StrokeStyle(lineWidth: 5, lineCap: .round)).rotationEffect(.degrees(90))
+            Circle().fill(palette.background(theme)).padding(9)
                 .overlay(Circle().strokeBorder(theme.ink.opacity(0.17), lineWidth: 1).padding(9))
-            Capsule().fill(theme.accent).frame(width: 4, height: diameter * 0.22)
+            Capsule().fill(palette.accent(theme)).frame(width: 4, height: diameter * 0.22)
                 .offset(y: -diameter * 0.22).rotationEffect(.degrees(-137 + normalized * 274))
         }.frame(width: diameter, height: diameter)
             .environment(\.layoutDirection, .leftToRight)
@@ -83,6 +128,7 @@ struct ThemeParameterControl: View {
     @ObservedObject var audio: AudioModel
     let parameter: Parameter
     @Environment(\.oudTheme) private var theme
+    @Environment(\.oudPalette) private var palette
     @AppStorage("OudLive.showExplanations") private var explanations = true
     var body: some View {
         if theme == .studio {
@@ -90,7 +136,7 @@ struct ThemeParameterControl: View {
                 RotaryControl(audio: audio, parameter: parameter)
                 VStack(alignment: .leading, spacing: 6) {
                     Text(parameter.label).font(.subheadline.bold())
-                    Text(parameter.text(audio.value(parameter))).font(.title3.monospacedDigit()).foregroundStyle(theme.accent)
+                    Text(parameter.text(audio.value(parameter))).font(.title3.monospacedDigit()).foregroundStyle(palette.accent(theme))
                     if explanations { Text(parameter.explanation).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
                     Slider(value: Binding(get: { audio.value(parameter) }, set: { audio.set(parameter, $0) }), in: parameter.range)
                         .accessibilityLabel(parameter.label)
@@ -98,7 +144,7 @@ struct ThemeParameterControl: View {
             }
         } else {
             VStack(alignment: .leading, spacing: 8) {
-                HStack { Text(parameter.label).font(.headline); Spacer(); Text(parameter.text(audio.value(parameter))).monospacedDigit().foregroundStyle(theme.accent) }
+                HStack { Text(parameter.label).font(.headline); Spacer(); Text(parameter.text(audio.value(parameter))).monospacedDigit().foregroundStyle(palette.accent(theme)) }
                 if explanations { Text(parameter.explanation).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
                 HStack {
                     adjustButton("minus", direction: -1)
@@ -110,7 +156,7 @@ struct ThemeParameterControl: View {
     }
     private func adjustButton(_ icon: String, direction: Double) -> some View {
         Button { audio.set(parameter, audio.value(parameter) + direction * (parameter.range.upperBound - parameter.range.lowerBound) / 20) } label: {
-            Image(systemName: icon).font(.headline).frame(width: 44, height: 44).background(theme.accent.opacity(0.1), in: RoundedRectangle(cornerRadius: theme == .stage ? 8 : 22))
+            Image(systemName: icon).font(.headline).frame(width: 44, height: 44).background(palette.accent(theme).opacity(0.1), in: RoundedRectangle(cornerRadius: theme == .stage ? 8 : 22))
         }.buttonStyle(.plain).accessibilityLabel((direction > 0 ? "زيادة " : "تقليل ") + parameter.label)
     }
 }

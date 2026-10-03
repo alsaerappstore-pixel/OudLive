@@ -6,6 +6,7 @@ struct PerformanceModes: View {
     let openEffects: () -> Void
     let openRecording: () -> Void
     @Environment(\.oudTheme) private var theme
+    @Environment(\.oudPalette) private var palette
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("OudLive.reactiveLights") private var lights = true
     @AppStorage("OudLive.showExplanations") private var explanations = true
@@ -41,7 +42,7 @@ struct PerformanceModes: View {
         VStack(spacing: 8) {
             RotaryControl(audio: audio, parameter: parameter, diameter: 84)
             Text(parameter.label).font(.subheadline.bold())
-            Text(parameter.text(audio.value(parameter))).font(.title3.monospacedDigit()).foregroundStyle(theme.accent)
+            Text(parameter.text(audio.value(parameter))).font(.title3.monospacedDigit()).foregroundStyle(palette.accent(theme))
         }.frame(maxWidth: .infinity).padding(.vertical, 8)
     }
     private var simple: some View {
@@ -72,7 +73,7 @@ struct PerformanceModes: View {
             HStack(spacing: 8) {
                 ForEach(["عود صافي", "مسرح", "مشكل"], id: \.self) { name in
                     Button(name) { audio.choosePreset(name) }.font(.subheadline.bold()).frame(maxWidth: .infinity, minHeight: 48)
-                        .background(theme.accent.opacity(audio.settings.preset == name ? 0.27 : 0.08), in: RoundedRectangle(cornerRadius: 8))
+                        .background(palette.accent(theme).opacity(audio.settings.preset == name ? 0.27 : 0.08), in: RoundedRectangle(cornerRadius: 8))
                 }
             }.buttonStyle(.plain)
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
@@ -101,7 +102,7 @@ struct PerformanceModes: View {
                 if explanations { Text(SoundSettings.detail(name)).font(.caption).fixedSize(horizontal: false, vertical: true) }
             }.frame(maxWidth: .infinity, minHeight: 106, alignment: .leading).padding(16)
                 .foregroundStyle(selected ? theme.onAccent : theme.ink)
-                .background(selected ? theme.accent : theme.panel, in: RoundedRectangle(cornerRadius: theme.radius))
+                .background(selected ? palette.accent(theme) : palette.panel(theme), in: RoundedRectangle(cornerRadius: theme.radius))
         }.buttonStyle(.plain).accessibilityAddTraits(selected ? .isSelected : [])
     }
     private func effectSwitch(_ effect: Effect, compact: Bool) -> some View {
@@ -113,19 +114,19 @@ struct PerformanceModes: View {
                 HStack {
                     Image(systemName: effect.symbol).font(compact ? .body : .title2)
                     Spacer(minLength: 2)
-                    Circle().fill(enabled ? theme.accent : theme.ink.opacity(0.18)).frame(width: 9, height: 9)
-                        .shadow(color: theme.accent.opacity(glow), radius: 4 + 14 * glow)
+                    Circle().fill(enabled ? palette.accent(theme) : theme.ink.opacity(0.18)).frame(width: 9, height: 9)
+                        .shadow(color: palette.accent(theme).opacity(glow), radius: 4 + 14 * glow)
                 }
                 Text(effect.title).font(.headline)
                 if !compact && explanations { Text(effect.summary).font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
                 Text(enabled ? "يعمل" : "متوقف").font(.caption.bold())
                 if !compact {
-                    Capsule().fill(theme.accent.opacity(active ? 0.18 + glow * 0.82 : 0.06)).frame(height: 4)
+                    Capsule().fill(palette.accent(theme).opacity(active ? 0.18 + glow * 0.82 : 0.06)).frame(height: 4)
                 }
             }.frame(maxWidth: .infinity, minHeight: compact ? 72 : 100).padding(10)
-                .foregroundStyle(enabled ? theme.accent : theme.ink.opacity(0.55))
-                .background(theme.background, in: RoundedRectangle(cornerRadius: compact ? 6 : 12))
-                .overlay(RoundedRectangle(cornerRadius: compact ? 6 : 12).strokeBorder(theme.accent.opacity(enabled ? 0.6 : 0.12), lineWidth: 1))
+                .foregroundStyle(enabled ? palette.accent(theme) : theme.ink.opacity(0.55))
+                .background(palette.background(theme), in: RoundedRectangle(cornerRadius: compact ? 6 : 12))
+                .overlay(RoundedRectangle(cornerRadius: compact ? 6 : 12).strokeBorder(palette.accent(theme).opacity(enabled ? 0.6 : 0.12), lineWidth: 1))
         }.buttonStyle(.plain).accessibilityLabel(effect.title).accessibilityValue(enabled ? "مفعّل" : "متوقف").accessibilityHint("اضغط لتبديل حالة التأثير")
     }
     private var quickRecord: some View {
@@ -152,4 +153,3 @@ struct PerformanceModes: View {
         }.modifier(ThemedPanel())
     }
 }
-

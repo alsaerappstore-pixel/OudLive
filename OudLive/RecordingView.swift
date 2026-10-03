@@ -5,6 +5,7 @@ import AVKit
 struct RecordingView: View {
     @ObservedObject var audio: AudioModel
     @Environment(\.oudTheme) private var theme
+    @Environment(\.oudPalette) private var palette
     @State private var video = false
     @State private var front = false
     @State private var playing: RecordingItem?
@@ -95,7 +96,7 @@ struct RecordingView: View {
                             .frame(maxWidth: .infinity, minHeight: 44)
                     }.buttonStyle(.borderedProminent).disabled(busy)
                 }
-                }.padding(12).background(theme.panel, in: RoundedRectangle(cornerRadius: theme.radius))
+                }.padding(12).background(palette.panel(theme), in: RoundedRectangle(cornerRadius: theme.radius))
             }
             Text("الفيديو تجريبي: جرّب مقطعًا قصيرًا للتحقق من تزامن الصوت والصورة على جهازك. تأخير سماعة البلوتوث في الاستماع لا يُضاف عمدًا إلى التسجيل.")
                 .font(.caption).foregroundStyle(.secondary)
@@ -137,6 +138,7 @@ private struct RecordingPlayback: View {
                 player.play()
             }.onDisappear { player.pause() }
                 .toolbar { Button("تم") { dismiss() } }.navigationTitle("التسجيل")
+                .safeAreaInset(edge: .bottom) { CopyrightFooter().background(.ultraThinMaterial) }
         }
     }
 }
