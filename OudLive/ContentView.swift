@@ -29,7 +29,7 @@ struct ContentView: View {
                 if page == 1 { effects }
                 if page == 2 { connection }
                 if page == 3 { RecordingView(audio: audio) }
-                Text("عود لايف 3.2  •  معالجة وتسجيل محلي")
+                Text("ياسر الغامدي 2026")
                     .font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity)
             }.padding(20).frame(maxWidth: 740).frame(maxWidth: .infinity)
         }
@@ -279,4 +279,3 @@ private struct AudioOutputPicker: UIViewRepresentable {
 private extension View {
     func card() -> some View { modifier(ThemedPanel()) }
 }
-
