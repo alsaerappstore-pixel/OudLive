@@ -1,4 +1,6 @@
 import AVFoundation
+import CoreGraphics
+import CoreText
 
 // All capture and writer state belongs to this serial queue, never the audio callback.
 final class VideoRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
@@ -102,6 +104,61 @@ final class VideoRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
 }
 
 enum RecordingExport {
+    // A single reusable portrait cover; the original wet audio is never processed again.
+    static func audioMovie(audio: URL, destination: URL) async throws {
+        let asset = AVURLAsset(url: audio)
+        let duration = try await asset.load(.duration)
+        guard duration.seconds.isFinite, duration.seconds > 0,
+              !(try await asset.loadTracks(withMediaType: .audio)).isEmpty else {
+            throw VideoRecorder.error("التسجيل الصوتي فارغ أو غير صالح.")
+        }
+        let cover = destination.deletingLastPathComponent().appendingPathComponent(UUID().uuidString + ".mov")
+        defer { try? FileManager.default.removeItem(at: cover) }
+        let writer = try AVAssetWriter(outputURL: cover, fileType: .mov)
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: [AVVideoCodecKey: AVVideoCodecType.h264, AVVideoWidthKey: 720, AVVideoHeightKey: 1280])
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input, sourcePixelBufferAttributes: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA, kCVPixelBufferWidthKey as String: 720, kCVPixelBufferHeightKey as String: 1280])
+        guard writer.canAdd(input) else { throw VideoRecorder.error("تعذّر تجهيز خلفية التسجيل.") }
+        writer.add(input)
+        var buffer: CVPixelBuffer?
+        guard CVPixelBufferCreate(kCFAllocatorDefault, 720, 1280, kCVPixelFormatType_32BGRA, [kCVPixelBufferCGImageCompatibilityKey: true, kCVPixelBufferCGBitmapContextCompatibilityKey: true] as CFDictionary, &buffer) == kCVReturnSuccess, let buffer else {
+            throw VideoRecorder.error("تعذّر إنشاء صورة التسجيل.")
+        }
+        CVPixelBufferLockBaseAddress(buffer, [])
+        guard let context = CGContext(data: CVPixelBufferGetBaseAddress(buffer), width: 720, height: 1280, bitsPerComponent: 8, bytesPerRow: CVPixelBufferGetBytesPerRow(buffer), space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGBitmapInfo.byteOrder32Little.rawValue | CGImageAlphaInfo.premultipliedFirst.rawValue) else {
+            CVPixelBufferUnlockBaseAddress(buffer, []); throw VideoRecorder.error("تعذّر رسم خلفية التسجيل.")
+        }
+        context.setFillColor(CGColor(red: 0.04, green: 0.07, blue: 0.08, alpha: 1)); context.fill(CGRect(x: 0, y: 0, width: 720, height: 1280))
+        let ink = CGColor(red: 1, green: 0.72, blue: 0.4, alpha: 1)
+        context.setStrokeColor(ink); context.setLineWidth(3); context.strokeEllipse(in: CGRect(x: 260, y: 790, width: 200, height: 240))
+        for x in stride(from: 330, through: 390, by: 12) { context.move(to: CGPoint(x: CGFloat(x), y: 770)); context.addLine(to: CGPoint(x: CGFloat(x), y: 1110)); context.strokePath() }
+        func title(_ text: String, size: CGFloat, y: CGFloat) {
+            let attrs: [NSAttributedString.Key: Any] = [NSAttributedString.Key(kCTFontAttributeName as String): CTFontCreateWithName("Helvetica" as CFString, size, nil), NSAttributedString.Key(kCTForegroundColorAttributeName as String): ink]
+            let line = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: attrs))
+            let width = CTLineGetTypographicBounds(line, nil, nil, nil)
+            context.textPosition = CGPoint(x: (720 - width) / 2, y: y); CTLineDraw(line, context)
+        }
+        title("عود لايف", size: 62, y: 650); title("تسجيل صوتي", size: 30, y: 570)
+        CVPixelBufferUnlockBaseAddress(buffer, [])
+        guard writer.startWriting() else { throw writer.error ?? VideoRecorder.error("تعذّر بدء التحويل.") }
+        writer.startSession(atSourceTime: .zero)
+        do {
+            var frame: Int64 = 0
+            while Double(frame) / 2 < duration.seconds {
+                try Task.checkCancellation()
+                let deadline = Date().addingTimeInterval(60)
+                while !input.isReadyForMoreMediaData {
+                    guard writer.status == .writing, Date() < deadline else { throw writer.error ?? VideoRecorder.error("توقف تجهيز الفيديو. حاول مجددًا.") }
+                    try await Task.sleep(nanoseconds: 5_000_000)
+                }
+                guard adaptor.append(buffer, withPresentationTime: CMTime(value: frame, timescale: 2)) else { throw writer.error ?? VideoRecorder.error("تعذّر كتابة خلفية الفيديو.") }
+                frame += 1
+            }
+            writer.endSession(atSourceTime: duration); input.markAsFinished(); await writer.finishWriting()
+            guard writer.status == .completed else { throw writer.error ?? VideoRecorder.error("لم يكتمل التحويل.") }
+            try Task.checkCancellation()
+            try await combine(audio: audio, video: cover, audioStart: 0, videoStart: 0, destination: destination)
+        } catch { writer.cancelWriting(); throw error }
+    }
     // Camera and RemoteIO timestamps use the host clock. Trim to their overlap;
     // do not add Bluetooth playback delay to the media file.
     static func combine(audio: URL, video: URL, audioStart: Double, videoStart: Double, destination: URL) async throws {

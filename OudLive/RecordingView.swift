@@ -59,6 +59,7 @@ struct RecordingView: View {
             if !audio.monitoring { Text("لا تحتاج سماعة للتسجيل. مكبر الآيفون صامت أثناء المعالجة لمنع الصفير؛ يمكنك سماع الملف بعد الحفظ.").font(.caption) }
             if audio.recordingFinishing { ProgressView("جارٍ حفظ التسجيل…") }
             Text("تسجيلاتي").font(.headline)
+            Text("حفظ في الصور يحوّل الصوت إلى فيديو بخلفية ثابتة ويحفظه في الألبوم بنفس التأثيرات. أبقِ التطبيق مفتوحًا حتى يكتمل الحفظ.").font(.caption).foregroundStyle(.secondary)
             if audio.recordings.isEmpty {
                 Text("تظهر تسجيلاتك هنا بعد إيقاف التسجيل. تبقى على الآيفون حتى تشاركها بنفسك.").font(.caption).foregroundStyle(.secondary)
             }
@@ -79,7 +80,7 @@ struct RecordingView: View {
                 }
                 HStack(spacing: 12) {
                     Menu {
-                        if url.pathExtension.lowercased() == "mp4" {
+                        if ["mp4", "wav"].contains(url.pathExtension.lowercased()) {
                             Button { audio.saveVideoToPhotos(url) } label: { Label("حفظ في الصور", systemImage: "photo.on.rectangle") }
                         }
                         Button { saving = RecordingItem(url: url) } label: { Label("حفظ في الملفات", systemImage: "folder") }
@@ -88,9 +89,9 @@ struct RecordingView: View {
                     Spacer(minLength: 0)
                     Button(role: .destructive) { deleting = url; confirmDelete = true } label: { Label("حذف", systemImage: "trash") }
                 }.buttonStyle(.bordered).disabled(busy)
-                if url.pathExtension.lowercased() == "mp4" {
+                if ["mp4", "wav"].contains(url.pathExtension.lowercased()) {
                     Button { audio.saveVideoToPhotos(url) } label: {
-                        Label(audio.savingToPhotos == url ? "جارٍ الحفظ في الصور…" : "حفظ في الصور", systemImage: "photo.on.rectangle")
+                        Label(audio.savingToPhotos == url ? "جارٍ تجهيز الحفظ…" : "حفظ في الصور", systemImage: "photo.on.rectangle")
                             .frame(maxWidth: .infinity, minHeight: 44)
                     }.buttonStyle(.borderedProminent).disabled(busy)
                 }

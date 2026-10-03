@@ -55,5 +55,31 @@ import Foundation
         }
         precondition(reader.status == .completed && energy > 1)
         print("PASS: MP4 exports one video and supplied audio track, trims offset and decodes non-silent audio")
+        let audioMovie = root.appendingPathComponent("audio-cover.mp4")
+        try await RecordingExport.audioMovie(audio: audio, destination: audioMovie)
+        let coverAsset = AVURLAsset(url: audioMovie)
+        let coverDuration = try await coverAsset.load(.duration).seconds
+        let coverAudio = try await coverAsset.loadTracks(withMediaType: .audio)
+        let coverVideo = try await coverAsset.loadTracks(withMediaType: .video)
+        precondition(abs(coverDuration - 2) < 0.08 && coverAudio.count == 1 && coverVideo.count == 1)
+        let size = try await coverVideo[0].load(.naturalSize)
+        precondition(size.width == 720 && size.height == 1280)
+        let coverReader = try AVAssetReader(asset: coverAsset)
+        let samples = AVAssetReaderTrackOutput(track: coverAudio[0], outputSettings: [AVFormatIDKey: kAudioFormatLinearPCM, AVLinearPCMIsFloatKey: true, AVLinearPCMBitDepthKey: 32, AVLinearPCMIsNonInterleaved: false])
+        coverReader.add(samples); precondition(coverReader.startReading())
+        var power: Double = 0; var sampleCount = 0
+        while let sample = samples.copyNextSampleBuffer(), let data = CMSampleBufferGetDataBuffer(sample) {
+            var values = [Float](repeating: 0, count: CMBlockBufferGetDataLength(data) / 4)
+            let result = values.withUnsafeMutableBytes { CMBlockBufferCopyDataBytes(data, atOffset: 0, dataLength: $0.count, destination: $0.baseAddress!) }
+            precondition(result == noErr)
+            power += values.reduce(0) { $0 + Double($1 * $1) }; sampleCount += values.count
+        }
+        precondition(coverReader.status == .completed && sampleCount > 180000)
+        precondition(abs(sqrt(power / Double(sampleCount)) - 0.15 / sqrt(2)) < 0.015)
+        let generator = AVAssetImageGenerator(asset: coverAsset)
+        let first = try generator.copyCGImage(at: CMTime(seconds: 0.25, preferredTimescale: 600), actualTime: nil)
+        let last = try generator.copyCGImage(at: CMTime(seconds: 1.75, preferredTimescale: 600), actualTime: nil)
+        precondition(first.width == 720 && last.height == 1280)
+        print("PASS: audio-only recording becomes a portrait movie with full duration, audible level and cover frames at both ends")
     }
 }

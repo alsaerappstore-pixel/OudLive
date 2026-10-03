@@ -7,25 +7,42 @@ import Photos
 final class AudioModel: ObservableObject {
     @Published private(set) var savingToPhotos: URL?
     @Published var photosNotice: String?
+    private var photoExportTask: Task<Void, Never>?
     func saveVideoToPhotos(_ url: URL) {
         guard savingToPhotos == nil, !recording, !recordingPreparing, !recordingFinishing,
-              recordings.contains(url), url.pathExtension.lowercased() == "mp4",
+              recordings.contains(url), ["mp4", "wav"].contains(url.pathExtension.lowercased()),
               FileManager.default.fileExists(atPath: url.path) else { return }
         savingToPhotos = url
-        Task {
-            defer { savingToPhotos = nil }
+        photoExportTask = Task {
+            let background = UIApplication.shared.beginBackgroundTask(withName: "Save recording to Photos") { [weak self] in self?.photoExportTask?.cancel() }
+            let temporary = FileManager.default.temporaryDirectory.appendingPathComponent("OudLive-Photos-" + UUID().uuidString, isDirectory: true)
+            defer {
+                try? FileManager.default.removeItem(at: temporary)
+                if background != .invalid { UIApplication.shared.endBackgroundTask(background) }
+                savingToPhotos = nil; photoExportTask = nil
+            }
             let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
             guard status == .authorized || status == .limited else {
                 photosNotice = "لم يُسمح بالحفظ في الصور. من إعدادات الآيفون افتح عود لايف ثم الصور واسمح بإضافة الصور. الفيديو ما زال محفوظًا في تسجيلاتي."
                 return
             }
             do {
+                try Task.checkCancellation()
+                var movie = url
+                if url.pathExtension.lowercased() == "wav" {
+                    try FileManager.default.createDirectory(at: temporary, withIntermediateDirectories: true)
+                    movie = temporary.appendingPathComponent("OudLive.mp4")
+                    try await RecordingExport.audioMovie(audio: url, destination: movie)
+                }
+                try Task.checkCancellation()
+                let finishedMovie = movie
                 try await PHPhotoLibrary.shared().performChanges {
-                    PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url)
+                    let request = PHAssetCreationRequest.forAsset()
+                    request.addResource(with: .video, fileURL: finishedMovie, options: nil)
                 }
                 photosNotice = "تم حفظ الفيديو بصوت التأثيرات في تطبيق الصور. النسخة الأصلية ما زالت في تسجيلاتي."
             } catch {
-                photosNotice = "تعذّر الحفظ في الصور: \(error.localizedDescription). الفيديو ما زال في تسجيلاتي؛ يمكنك إعادة المحاولة أو حفظه في الملفات."
+                photosNotice = "تعذّر الحفظ في الصور: \(error.localizedDescription). الأصل ما زال في تسجيلاتي؛ أبقِ التطبيق مفتوحًا وأعد المحاولة."
             }
         }
     }
