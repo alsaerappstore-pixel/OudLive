@@ -1,14 +1,14 @@
 {
-  "version": "3.2.0",
-  "build_number": 10,
-  "commit": "f722312327f97672462f00281ec672fc26b4ae02",
-  "workflow_run": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/37095505973",
-  "artifact_url": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/37095505973/artifacts/11264391210",
-  "result": "success",
+  "version": "3.2.1",
+  "build_number": 11,
+  "commit": "a092a8b451c6b8d4cdfc92f6d85973669419a698",
+  "workflow_run": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/37096326198",
+  "artifact_url": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/37096326198/artifacts/11263853692",
+  "result": "ipa_and_media_tests_passed",
   "audio_cover_movie_tested": true,
   "photos_export_device_tested": false,
   "signed": false,
-  "simulator": "screenshots reviewed",
+  "simulator": "running_at_delivery",
   "new_color_palettes": 8,
   "copyright": "جميع الحقوق محفوظة © ياسر الغامدي"
 }
