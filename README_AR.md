@@ -1,6 +1,6 @@
-# دليل عود لايف 3.0
+# دليل عود لايف 3.1
 
-[تحميل النسخة](https://github.com/alsaerappstore-pixel/OudLive/actions/runs/37074672948/artifacts/11255333393). فك الضغط وثبّت IPA عبر Sideloadly بنفس حسابك السابق. احتفظ بنسخة من تسجيلاتك قبل حذف التطبيق.
+[تحميل النسخة](https://github.com/alsaerappstore-pixel/OudLive/actions/runs/37094293894/artifacts/11263199952). فك الضغط وثبّت IPA عبر Sideloadly بنفس حسابك السابق. احتفظ بنسخة من تسجيلاتك قبل حذف التطبيق.
 
 - **التسجيل:** يسجّل مباشرة بصوت المؤثرات بدون سماعة. اضبط مستوى التسجيل ثم أوقف واحفظ. [الدليل](RECORDING_AR.md).
 - **العزف:** 12 لونًا جاهزًا وحفظ إعدادات بأسماء تختارها. «عود صافي» لطابع أقرب للأصل مع رنين خفيف.
@@ -11,7 +11,7 @@
 
 التسجيلات محلية في مستندات التطبيق/Recordings وتظهر في الملفات. الفيديو 720p عمودي بصوت معالج، وله نسخة WAV مستقلة. لا يوجد Auto-Tune أو مترونوم.
 
-المشروع في OudLive.xcodeproj ويمكن بناؤه على GitHub Actions من Windows. ناتج OudLive-iPhone-IPA يحتوي ملف التثبيت غير الموقع لتوقيعه بـ Sideloadly. على Mac استخدم scripts/build-ipa.sh. [البناء المختبر](https://github.com/alsaerappstore-pixel/OudLive/actions/runs/37074672948).
+المشروع في OudLive.xcodeproj ويمكن بناؤه على GitHub Actions من Windows. ناتج OudLive-iPhone-IPA يحتوي ملف التثبيت غير الموقع لتوقيعه بـ Sideloadly. على Mac استخدم scripts/build-ipa.sh. [البناء المختبر](https://github.com/alsaerappstore-pixel/OudLive/actions/runs/37094293894).
 
 
-[دليل الأشكال الثلاثة والحفظ في الصور](THEMES_AR.md). للفيديو زر مستقل «حفظ في الصور». قائمة «حفظ» تتيح اختيار الصور أو الملفات، بينما يُحفظ الصوت في الملفات.
+[دليل الأشكال الثلاثة والحفظ في الصور](THEMES_AR.md). للفيديو زر مستقل «حفظ في الصور». قائمة «حفظ» تتيح اختيار الصور أو الملفات، والصوت يُحفظ في الصور بعد تحويله إلى فيديو بخلفية ثابتة.

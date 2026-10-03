@@ -1,18 +1,12 @@
 {
-  "version": "3.0.0",
-  "build_number": 8,
-  "commit": "f928e7f2c961f976072c851f0376b3d4477b059b",
-  "workflow_run": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/37074672948",
-  "artifact_url": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/37074672948/artifacts/11255333393",
-  "result": "success",
-  "dsp_checks_passed": 19,
-  "recording_samples_tested": true,
-  "movie_export_tested": true,
-  "signed": false,
+  "version": "3.1.0",
+  "build_number": 9,
+  "commit": "361edd65c32b25018a67706e9908e190483ed273",
+  "workflow_run": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/37094293894",
+  "artifact_url": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/37094293894/artifacts/11263199952",
+  "result": "ipa_and_media_tests_passed",
+  "audio_cover_movie_tested": true,
   "photos_export_device_tested": false,
-  "themes": [
-    "studio",
-    "simple",
-    "stage"
-  ]
+  "signed": false,
+  "simulator_screenshots": "running_at_delivery"
 }
