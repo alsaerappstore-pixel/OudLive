@@ -32,9 +32,12 @@ struct Ring {
     std::vector<float> data; size_t cursor=0;
     void prepare(size_t count) { data.assign(count,0); cursor=0; }
     float read(float delay) const {
-        float p=float(cursor)-clamp(delay,1,float(data.size()-2));
-        if(p<0) p+=float(data.size());
-        size_t i=size_t(p), j=(i+1)%data.size(); float f=p-float(i);
+        if(data.size()<3) return 0;
+        // Float addition can round a tiny negative position + length to length,
+        // causing an out-of-bounds read at the wrap boundary.
+        double p=double(cursor)-double(clamp(delay,1,float(data.size()-2)));
+        if(p<0) p+=double(data.size());
+        size_t whole=size_t(p), i=whole%data.size(), j=(i+1)%data.size(); float f=float(p-double(whole));
         return data[i]+f*(data[j]-data[i]);
     }
     void push(float x) { data[cursor]=x; cursor=(cursor+1)%data.size(); }
@@ -203,3 +206,4 @@ public:
     }
 };
 }
+

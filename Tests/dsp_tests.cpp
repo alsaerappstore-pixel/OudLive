@@ -23,6 +23,13 @@ static double sineRMS(oud::DSP &d,float hz,float amplitude=0.2f) {
 }
 int main() {
     {
+        oud::Ring ring; ring.prepare(3844); ring.cursor=2;
+        ring.data[0]=8; ring.data.back()=4;
+        float value=ring.read(std::nextafter(2.f,3.f));
+        assert(std::isfinite(value) && std::abs(value-8.f)<.001f);
+        std::cout<<"PASS: fractional delay wrap remains in bounds near the first sample\n";
+    }
+    {
         oud::DSP d; flat(d); d.set(oud::Bypass,1); d.prepare(48000); settle(d);
         float x[4]={.2f,-.4f,0,.1f},l[4],r[4]; d.process(x,l,r,4);
         for(int i=0;i<4;++i) { assert(std::abs(l[i]-x[i])<1e-4); assert(l[i]==r[i]); }
@@ -158,3 +165,4 @@ int main() {
     }
     std::cout<<"All DSP checks passed. Device latency and iOS integration still require hardware testing.\n";
 }
+

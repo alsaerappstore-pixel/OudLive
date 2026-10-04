@@ -158,7 +158,9 @@ enum RecordingExport {
             writer.endSession(atSourceTime: duration); input.markAsFinished(); await writer.finishWriting()
             guard writer.status == .completed else { throw writer.error ?? VideoRecorder.error("لم يكتمل التحويل.") }
             try Task.checkCancellation()
-            try await combine(audio: audio, video: cover, audioStart: 0, videoStart: 0, destination: destination)
+            // Equal positive synthetic origins preserve alignment while keeping
+            // the real camera path's missing-host-clock validation intact.
+            try await combine(audio: audio, video: cover, audioStart: 1, videoStart: 1, destination: destination)
         } catch { writer.cancelWriting(); throw error }
     }
     // Camera and RemoteIO timestamps use the host clock. Trim to their overlap;
@@ -196,3 +198,4 @@ enum RecordingExport {
         guard exporter.status == .completed else { throw exporter.error ?? VideoRecorder.error("لم يكتمل دمج الفيديو. الصوت محفوظ.") }
     }
 }
+
