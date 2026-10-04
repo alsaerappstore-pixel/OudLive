@@ -215,6 +215,9 @@ final class AudioModel: ObservableObject {
     private func persistSounds() {
         if let data = try? JSONEncoder().encode(namedSounds) { UserDefaults.standard.set(data, forKey: "OudLive.namedSounds.v1") }
     }
+    func chooseRecordingPreset(_ preset: RecordingPreset) {
+        loadSound(NamedSound(name: preset.name, mode: .oud, settings: preset.settings(preserving: settings)))
+    }
     func choosePreset(_ name: String) {
         let input = settings[.input], output = settings[.output], mute = settings[.mute], recordGain = settings[.recordGain]
         settings = .preset(name, mode: mode)

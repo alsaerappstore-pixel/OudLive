@@ -33,6 +33,10 @@ jobs:
         run: |
           swiftc -parse-as-library OudLive/VideoRecorder.swift OudLive/RecordingTiming.swift Tests/ExportTests/main.swift -o build/export-tests
           build/export-tests | tee build/export-test-results.txt
+      - name: Render and compare the 15 recording presets
+        run: |
+          clang++ -std=c++17 -O1 -g -fsanitize=address,undefined Tests/recording_presets.cpp -o build/preset-tests
+          build/preset-tests | tee build/preset-test-results.txt
       - name: Upload IPA for Sideloadly
         uses: actions/upload-artifact@v4
         with:

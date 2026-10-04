@@ -179,6 +179,7 @@ struct SoundSettings: Codable {
     }
     static let names = ["عود صافي", "طبيعي", "كلاسيكي", "فخم / ثقيل", "حاد", "مشكل", "قاعة كبيرة", "تقاسيم", "طرب دافئ", "ريشة واضحة", "مسرح", "مساحة واسعة"]
     static func detail(_ name: String) -> String {
+        if let preset = RecordingPreset.all.first(where: { $0.name == name }) { return preset.description }
         switch name {
         case "عود صافي": return "نبرة أصلية ومساحة خفيفة"
         case "تقاسيم": return "تفاصيل وزخارف حرة"
@@ -210,4 +211,42 @@ struct NamedSound: Codable, Identifiable {
     var name: String
     var mode: SoundMode
     var settings: SoundSettings
+}
+
+
+struct RecordingPreset: Identifiable {
+    let id: Int
+    let name: String
+    let description: String
+    private let controls: [Double]
+    func settings(preserving current: SoundSettings) -> SoundSettings {
+        var s = SoundSettings(); s.preset = name
+        let parameters: [Parameter] = [.low, .mid, .high, .compression, .makeup, .reverb, .decay, .predelay, .tone, .delay, .delayTime, .feedback, .modulation, .modRate, .flanger, .doubler]
+        for (p, value) in zip(parameters, controls) { s[p] = value }
+        for p in [Parameter.input, .output, .recordGain, .mute] { s[p] = current[p] }
+        s[.bypass] = 0; s[.intensity] = 1
+        if s[.delay] == 0 { s.disabledEffects.insert(.delay) }
+        if s[.modulation] == 0 { s.disabledEffects.insert(.motion) }
+        if s[.doubler] == 0 { s.disabledEffects.insert(.doubler) }
+        if s[.compression] == 0 { s.disabledEffects.insert(.compressor) }
+        if s[.low] == 0 && s[.mid] == 0 && s[.high] == 0 { s.disabledEffects.insert(.eq) }
+        return s
+    }
+    static let all: [RecordingPreset] = [
+        RecordingPreset(id: 1, name: "الأصالة", description: "دفء الثمانينات: لمعان أخف وصدى داكن وحركة خفيفة", controls: [1, 1, -3, 0.22, 1, 0.28, 2.4, 24, 0.24, 0.12, 145, 0.15, 0.08, 0.28, 0, 0]),
+        RecordingPreset(id: 2, name: "ريشة حادّة", description: "حضور ولمعان بارزان مع صدى قصير يحفظ الهجوم", controls: [-2, 2.5, 3, 0.12, 0.5, 0.1, 0.65, 18, 0.75, 0, 180, 0, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 3, name: "نقاء", description: "نبرة شبه محايدة ومساحة طفيفة دون ضغط أو حركة", controls: [-0.5, 0, 0.5, 0, 0, 0.06, 0.55, 12, 0.55, 0, 220, 0, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 4, name: "عمق القاعة", description: "رنين عميق طويل مع فصل الريشة عن بداية الصدى", controls: [0.5, -1, -0.5, 0.12, 0.5, 0.62, 5.8, 65, 0.22, 0.1, 530, 0.28, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 5, name: "مجلس خشبي", description: "مساحة قصيرة دافئة وقريبة للعزف الجماعي", controls: [1.5, -1, -1, 0.16, 0.7, 0.3, 0.9, 8, 0.32, 0, 200, 0, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 6, name: "وتر حريري", description: "تنعيم الريشة والأوتار العليا مع ضغط لطيف", controls: [0.5, -1.5, -4, 0.3, 1.5, 0.17, 1.6, 20, 0.18, 0, 240, 0, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 7, name: "قرار عميق", description: "إبراز القرار مع تهدئة الحضور وصدى محدود", controls: [3, -2, -1.5, 0.2, 1, 0.13, 1.1, 26, 0.3, 0, 280, 0, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 8, name: "بريق زجاجي", description: "لمعان فضي ورنين مشرق أطول دون تكرارات", controls: [-1.5, -1, 2.5, 0.08, 0.3, 0.34, 2.9, 42, 0.92, 0, 320, 0, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 9, name: "رجع خاطف", description: "رجعة قصيرة واحدة تبرز الجمل الإيقاعية", controls: [0, 1, -0.5, 0.18, 0.8, 0.07, 0.6, 6, 0.45, 0.38, 95, 0.04, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 10, name: "نبض متكرر", description: "تكرارات واضحة متوسطة للعزف على نبض ثابت", controls: [-1, 0.5, 0.5, 0.15, 0.6, 0.12, 1.3, 28, 0.5, 0.35, 300, 0.36, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 11, name: "حوار الوادي", description: "رد متأخر بين الجمل مع تكرارات قليلة داكنة", controls: [0, 1, -1, 0.1, 0.4, 0.22, 2.1, 46, 0.28, 0.38, 680, 0.24, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 12, name: "وتران", description: "طبقة قصيرة إضافية توحي بعزف عودين", controls: [0, -0.5, 1, 0.15, 0.6, 0.1, 0.8, 15, 0.6, 0, 250, 0, 0, 0.7, 0, 0.3]),
+        RecordingPreset(id: 13, name: "موج ناعم", description: "كورس بطيء واضح يحرّك النغمة دون صدى متكرر", controls: [-0.5, 0, -0.5, 0.12, 0.5, 0.2, 1.8, 30, 0.42, 0, 360, 0, 0.32, 0.38, 0, 0]),
+        RecordingPreset(id: 14, name: "طيف معدني", description: "فلانجر رقيق بتموّج معدني مميز للجمل التجريبية", controls: [-1, 1, 0, 0.1, 0.4, 0.1, 0.7, 10, 0.62, 0, 260, 0, 0.24, 0.62, 1, 0]),
+        RecordingPreset(id: 15, name: "أفق سينمائي", description: "مساحة ممتدة لامعة وكورس بطيء خلف النغمة", controls: [-2, -0.5, 1, 0.1, 0.4, 0.53, 6.8, 85, 0.64, 0.2, 920, 0.4, 0.14, 0.16, 0, 0.08])
+    ]
 }

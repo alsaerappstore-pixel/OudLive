@@ -55,3 +55,24 @@ let v22 = "{\"preset\":\"طبيعي\",\"values\":[6,-9,0,0,0,0.25,0.24,0.12,320,
 let migrated = try JSONDecoder().decode(SoundSettings.self, from: Data(v22.utf8))
 precondition(migrated.valid && migrated[.recordGain] == 0 && migrated[.output] == -9)
 print("PASS: independent recording gain migrates v2.2 settings and clear oud disables pitch-modulating layers")
+
+precondition(RecordingPreset.all.count == 15)
+precondition(Set(RecordingPreset.all.map(\.name)).count == 15)
+var reference = SoundSettings()
+reference[.input] = 17; reference[.output] = -23; reference[.recordGain] = 7; reference[.mute] = 1; reference[.bypass] = 1
+var audible = Set<[Double]>()
+var recipeRows = [String]()
+for preset in RecordingPreset.all {
+    let s = preset.settings(preserving: reference)
+    precondition(s.valid && s[.input] == 17 && s[.output] == -23 && s[.recordGain] == 7 && s[.mute] == 1 && s[.bypass] == 0)
+    let decoded = try JSONDecoder().decode(SoundSettings.self, from: JSONEncoder().encode(s))
+    precondition(decoded.values == s.values && decoded.disabledEffects == s.disabledEffects)
+    audible.insert(Parameter.allCases.map { s.effective($0) })
+    var neutral = preset.settings(preserving: SoundSettings())
+    neutral[.input] = 0; neutral[.output] = 0; neutral[.recordGain] = 0; neutral[.mute] = 0
+    recipeRows.append(Parameter.allCases.map { String(neutral.effective($0)) }.joined(separator: " "))
+}
+precondition(audible.count == 15)
+try FileManager.default.createDirectory(atPath: "build", withIntermediateDirectories: true)
+try recipeRows.joined(separator: "\n").write(toFile: "build/recording-presets.txt", atomically: true, encoding: .utf8)
+print("PASS: 15 recording presets are distinct, preserve live levels, activate processing and persist; actual effective values exported for DSP tests")

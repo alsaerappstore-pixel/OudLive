@@ -18,6 +18,7 @@ struct RecordingView: View {
             Text("سجّل عزفك").font(.title2.bold())
             Text("يسجّل بالمؤثرات ويحفظ على الجوال حتى بدون سماعة. مستوى السماعة وكتمها لا يؤثران في الملف.")
                 .font(.subheadline).foregroundStyle(.secondary)
+            recordingPresets
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("مستوى التسجيل").font(.headline)
@@ -116,6 +117,28 @@ struct RecordingView: View {
             Text("سيُحذف هذا الملف من تسجيلاتي والجوال. النسخ التي حفظتها في مكان آخر تبقى كما هي.\n" + (deleting?.lastPathComponent ?? ""))
         }
     }
+    private var recordingPresets: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("١٥ طابعًا لتسجيل العود").font(.headline)
+            Text("اختر بضغطة قبل التسجيل أو أثناءه. الاختيار يفعّل وضع العود والمؤثرات، ويحافظ على مستوى الالتقاط والتسجيل والسماعة. لا يغيّر الملفات السابقة.").font(.caption).foregroundStyle(.secondary)
+            Text("الحالي: \(audio.settings.preset)").font(.subheadline.bold()).foregroundStyle(palette.accent(theme))
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 10)], spacing: 10) {
+                ForEach(RecordingPreset.all) { preset in
+                    let selected = audio.mode == .oud && audio.settings.preset == preset.name
+                    Button { audio.chooseRecordingPreset(preset) } label: {
+                        VStack(alignment: .leading, spacing: 7) {
+                            HStack { Text(preset.name).font(.headline); Spacer(minLength: 2); if selected { Image(systemName: "checkmark.circle.fill") } }
+                            Text(preset.description).font(.caption).fixedSize(horizontal: false, vertical: true)
+                        }.frame(maxWidth: .infinity, minHeight: 88, alignment: .leading).padding(12)
+                            .foregroundStyle(selected ? theme.onAccent : theme.ink)
+                            .background(selected ? palette.accent(theme) : palette.panel(theme), in: RoundedRectangle(cornerRadius: theme.radius))
+                    }.buttonStyle(.plain).accessibilityAddTraits(selected ? .isSelected : [])
+                }
+            }
+            Text("الأصالة طابع مستوحى من الثمانينات. نقاء يقلّل التلوين ولا يزيل ضجيج الغرفة. اترك الصدى يهدأ قبل مقارنة طابع آخر.").font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
 }
 
 private struct RecordingItem: Identifiable { let url: URL; var id: URL { url } }
