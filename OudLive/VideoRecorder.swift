@@ -22,7 +22,11 @@ final class VideoRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
                 #if os(iOS)
                 self.session.automaticallyConfiguresApplicationAudioSession = false
                 #endif
+                #if os(iOS)
                 self.session.sessionPreset = .inputPriority
+                #else
+                self.session.sessionPreset = .hd1280x720
+                #endif
                 var types: [AVCaptureDevice.DeviceType] = [.builtInWideAngleCamera]
                 #if os(iOS)
                 types += [.builtInUltraWideCamera, .builtInTrueDepthCamera]
@@ -37,7 +41,9 @@ final class VideoRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
                             format.videoSupportedFrameRateRanges.contains { $0.minFrameRate <= 30 && $0.maxFrameRate >= 30 }
                     }.map { (device: device, format: $0) }
                 }.sorted { a, b in
+                    #if os(iOS)
                     if abs(a.format.videoFieldOfView - b.format.videoFieldOfView) > 0.1 { return a.format.videoFieldOfView > b.format.videoFieldOfView }
+                    #endif
                     let x = CMVideoFormatDescriptionGetDimensions(a.format.formatDescription)
                     let y = CMVideoFormatDescriptionGetDimensions(b.format.formatDescription)
                     // With the same horizontal FOV, a taller sensor area shows more.
