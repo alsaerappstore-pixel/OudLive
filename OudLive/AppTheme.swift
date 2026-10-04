@@ -229,10 +229,14 @@ struct KnobFace: View {
 }
 struct StatusLamp: View {
     let on: Bool
+    var activity: Float = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage("OudLive.reactiveLights") private var reactiveLights = true
+    private var glow: Double { reactiveLights && !reduceMotion ? Double(min(1, max(0, activity * 4))) : 0 }
     var body: some View {
         Circle().fill(RadialGradient(colors: on ? [Color(red: 0.95, green: 1, blue: 0.7), .green, Color(red: 0.01, green: 0.3, blue: 0.03)] : [Color(white: 0.20), Color(white: 0.08)], center: .topLeading, startRadius: 0, endRadius: 12))
             .frame(width: 12, height: 12).overlay(Circle().strokeBorder(.black.opacity(0.65), lineWidth: 1))
-            .shadow(color: on ? .green.opacity(0.45) : .clear, radius: 4).accessibilityHidden(true)
+            .shadow(color: on ? .green.opacity(0.35 + glow * 0.45) : .clear, radius: 4 + glow * 8).accessibilityHidden(true)
     }
 }
 struct EffectPowerLight: View {
@@ -243,7 +247,7 @@ struct EffectPowerLight: View {
     var body: some View {
         Button { audio.setEnabled(effect, !audio.settings.enabled(effect)) } label: {
             HStack(spacing: 8) {
-                StatusLamp(on: audio.settings.enabled(effect) && audio.value(.bypass) < 0.5)
+                StatusLamp(on: audio.settings.enabled(effect) && audio.value(.bypass) < 0.5, activity: audio.recordingLevel)
                 Text(effect.title).font(.caption.bold())
             }.frame(maxWidth: .infinity, minHeight: 44).padding(.horizontal, 5).background { EraSurface() }
         }.buttonStyle(.plain).foregroundStyle(era.ink(theme))
@@ -259,7 +263,7 @@ struct EraMeter: View {
         if era == .eighties {
             ZStack(alignment: .bottom) {
                 RoundedRectangle(cornerRadius: 4).fill(Color(red: 0.94, green: 0.88, blue: 0.68))
-                HStack { Text("−40"); Spacer(); Text("−20"); Spacer(); Text("0").foregroundStyle(.red) }.font(.system(size: 9, design: .monospaced)).padding(6).frame(maxHeight: .infinity, alignment: .top)
+                HStack { Text("−60"); Spacer(); Text("−30"); Spacer(); Text("0").foregroundStyle(.red) }.font(.system(size: 9, design: .monospaced)).padding(6).frame(maxHeight: .infinity, alignment: .top).environment(\.layoutDirection, .leftToRight)
                 Canvas { context, size in
                     let base = CGPoint(x: size.width / 2, y: size.height - 3)
                     let angle = (-150 + 120 * fraction) * .pi / 180

@@ -42,13 +42,13 @@ final class VideoRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
                     }.map { (device: device, format: $0) }
                 }.sorted { a, b in
                     #if os(iOS)
-                    if abs(a.format.videoFieldOfView - b.format.videoFieldOfView) > 0.1 { return a.format.videoFieldOfView > b.format.videoFieldOfView }
+                    if a.format.videoFieldOfView != b.format.videoFieldOfView { return a.format.videoFieldOfView > b.format.videoFieldOfView }
                     #endif
                     let x = CMVideoFormatDescriptionGetDimensions(a.format.formatDescription)
                     let y = CMVideoFormatDescriptionGetDimensions(b.format.formatDescription)
                     // With the same horizontal FOV, a taller sensor area shows more.
                     let ax = Double(x.height) / Double(x.width), ay = Double(y.height) / Double(y.width)
-                    if abs(ax - ay) > 0.01 { return ax > ay }
+                    if ax != ay { return ax > ay }
                     return abs(Int(x.width) * Int(x.height) - 1920 * 1080) < abs(Int(y.width) * Int(y.height) - 1920 * 1080)
                 }
                 guard let chosen = candidates.first else { throw Self.error("الكاميرا غير متاحة.") }
