@@ -19,13 +19,6 @@ struct RecordingView: View {
         VStack(alignment: .leading, spacing: 18) {
             Text("سجّل عزفك").font(.title2.bold())
             Text("صوت المؤثرات محفوظ حتى بدون سماعة. الكتم ومستوى السماعة لا يغيّران التسجيل.").font(.caption).foregroundStyle(.secondary)
-            recordingPresets
-            QuickSoundBank(audio: audio)
-            VStack(spacing: 12) {
-                ThemeParameterControl(audio: audio, parameter: .recordGain)
-                SignalLED(level: audio.recordingLevel, tint: audio.recordingLimiting > 3 ? .orange : .green)
-                Text(audio.recordingLimiting > 3 ? "خفّض التسجيل أو الالتقاط؛ حماية القمم تعمل بقوة." : "قرّب الميكروفون وارفع المستوى تدريجيًا.").font(.caption).foregroundStyle(.secondary)
-            }.modifier(ThemedPanel())
             Picker("نوع التسجيل", selection: $video) {
                 Text("صوت").tag(false); Text("فيديو وصوت").tag(true)
             }.pickerStyle(.segmented).disabled(busy)
@@ -46,7 +39,14 @@ struct RecordingView: View {
                 Label(audio.recording ? "إيقاف وحفظ" : (audio.recordingPreparing ? "إلغاء التجهيز" : "ابدأ التسجيل"), systemImage: audio.recording ? "stop.circle.fill" : "record.circle").font(.headline).frame(maxWidth: .infinity, minHeight: 54)
             }.buttonStyle(.borderedProminent).tint(.red).disabled(audio.recordingFinishing || audio.starting || audio.savingToPhotos != nil)
             if audio.recordingFinishing { ProgressView("جارٍ حفظ التسجيل…") }
-            library
+            recordingPresets
+            QuickSoundBank(audio: audio).id("recording-memories")
+            VStack(spacing: 12) {
+                ThemeParameterControl(audio: audio, parameter: .recordGain)
+                SignalLED(level: audio.recordingLevel, tint: audio.recordingLimiting > 3 ? .orange : .green)
+                Text(audio.recordingLimiting > 3 ? "خفّض التسجيل أو الالتقاط؛ حماية القمم تعمل بقوة." : "قرّب الميكروفون وارفع المستوى تدريجيًا.").font(.caption).foregroundStyle(.secondary)
+            }.modifier(ThemedPanel())
+            library.id("recording-library")
         }
         .sheet(item: $playing) { RecordingPlayback(request: $0) }
         .alert("الحفظ في الصور", isPresented: Binding(get: { audio.photosNotice != nil }, set: { if !$0 { audio.photosNotice = nil } })) {

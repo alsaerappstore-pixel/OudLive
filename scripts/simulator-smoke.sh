@@ -10,7 +10,7 @@ xcodebuild -project OudLive.xcodeproj -scheme OudLive -configuration Debug \
   -sdk iphonesimulator -destination "id=$DEVICE" -derivedDataPath build/Simulator \
   CODE_SIGNING_ALLOWED=NO build > build/simulator.log 2>&1 || { tail -n 80 build/simulator.log; exit 1; }
 xcrun simctl install "$DEVICE" build/Simulator/Build/Products/Debug-iphonesimulator/OudLive.app
-for PAGE in studio simple stage effects connection recording; do
+for PAGE in studio simple stage effects connection recording memories; do
   PALETTE=original
   ERA=eighties
   case "$PAGE" in simple) ERA=nineties;; stage) ERA=modern;; esac
@@ -25,7 +25,7 @@ done
 python3 - <<'PY'
 import base64
 from pathlib import Path
-for name in ['studio','simple','stage','effects','connection','recording']:
+for name in ['studio','simple','stage','effects','connection','recording','memories']:
     encoded=base64.b64encode(Path('build/'+name+'-preview.png').read_bytes()).decode()
     for i in range(0,len(encoded),6000): print('OUD_SCREEN_'+name+':'+encoded[i:i+6000])
 PY

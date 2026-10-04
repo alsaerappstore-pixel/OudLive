@@ -20,6 +20,7 @@ struct ContentView: View {
     private var mint: Color { theme == .simple || palette != .original ? era.accent(theme, palette) : Color(red: 0.2, green: 0.85, blue: 0.72) }
     private var surface: Color { era.panel(theme, palette) }
     var body: some View {
+        ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 header
@@ -57,7 +58,12 @@ struct ContentView: View {
             if ProcessInfo.processInfo.arguments.contains("--preview-effects") { page = 1 }
             if ProcessInfo.processInfo.arguments.contains("--preview-connection") { page = 2 }
             if ProcessInfo.processInfo.arguments.contains("--preview-recording") { page = 3 }
+            if ProcessInfo.processInfo.arguments.contains("--preview-memories") {
+                page = 0
+                Task { try? await Task.sleep(nanoseconds: 500_000_000); proxy.scrollTo("sound-memories", anchor: .top) }
+            }
             #endif
+        }
         }
     }
     private var header: some View {
@@ -96,7 +102,7 @@ struct ContentView: View {
                 AudioOutputPicker().frame(width: 44, height: 44).accessibilityLabel("اختيار السماعة")
             }
             meter("التقاط", value: audio.inputLevel)
-            if theme != .simple && page != 0 {
+            if theme != .simple && page == 2 {
                 meter("تسجيل", value: audio.recordingLevel)
                 meter("سماعة", value: audio.outputLevel)
             }
@@ -142,7 +148,7 @@ struct ContentView: View {
                 } label: { Label("أصواتي المحفوظة", systemImage: "bookmark.fill").frame(minHeight: 44) }
             }
             PerformanceModes(audio: audio, openEffects: { page = 1 }, openRecording: { page = 3 })
-            QuickSoundBank(audio: audio)
+            QuickSoundBank(audio: audio).id("sound-memories")
         }
     }
     private var effects: some View {
