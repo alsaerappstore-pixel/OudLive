@@ -22,13 +22,42 @@ final class VideoRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
                 #if os(iOS)
                 self.session.automaticallyConfiguresApplicationAudioSession = false
                 #endif
-                self.session.sessionPreset = .hd1280x720
-                guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: front ? .front : .back) else {
-                    throw Self.error("الكاميرا غير متاحة.")
+                self.session.sessionPreset = .inputPriority
+                var types: [AVCaptureDevice.DeviceType] = [.builtInWideAngleCamera]
+                #if os(iOS)
+                types += [.builtInUltraWideCamera, .builtInTrueDepthCamera]
+                #endif
+                let cameras = AVCaptureDevice.DiscoverySession(deviceTypes: types, mediaType: .video, position: front ? .front : .back).devices
+                // Select field of view, not digital magnification. Prefer fewer pixels
+                // when equally wide to leave processing headroom for live audio.
+                let candidates = cameras.flatMap { device in
+                    device.formats.filter { format in
+                        let d = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
+                        return d.width >= 640 && d.width <= 4096 && d.height >= 480 && d.height <= 3072 &&
+                            format.videoSupportedFrameRateRanges.contains { $0.minFrameRate <= 30 && $0.maxFrameRate >= 30 }
+                    }.map { (device: device, format: $0) }
+                }.sorted { a, b in
+                    if abs(a.format.videoFieldOfView - b.format.videoFieldOfView) > 0.1 { return a.format.videoFieldOfView > b.format.videoFieldOfView }
+                    let x = CMVideoFormatDescriptionGetDimensions(a.format.formatDescription)
+                    let y = CMVideoFormatDescriptionGetDimensions(b.format.formatDescription)
+                    // With the same horizontal FOV, a taller sensor area shows more.
+                    let ax = Double(x.height) / Double(x.width), ay = Double(y.height) / Double(y.width)
+                    if abs(ax - ay) > 0.01 { return ax > ay }
+                    return abs(Int(x.width) * Int(x.height) - 1920 * 1080) < abs(Int(y.width) * Int(y.height) - 1920 * 1080)
                 }
+                guard let chosen = candidates.first else { throw Self.error("الكاميرا غير متاحة.") }
+                let camera = chosen.device
                 let cameraInput = try AVCaptureDeviceInput(device: camera)
                 guard self.session.canAddInput(cameraInput) else { throw Self.error("تعذّر توصيل الكاميرا.") }
                 self.session.addInput(cameraInput)
+                try camera.lockForConfiguration()
+                camera.activeFormat = chosen.format
+                camera.activeVideoMinFrameDuration = CMTime(value: 1, timescale: 30)
+                camera.activeVideoMaxFrameDuration = CMTime(value: 1, timescale: 30)
+                #if os(iOS)
+                camera.videoZoomFactor = camera.minAvailableVideoZoomFactor
+                #endif
+                camera.unlockForConfiguration()
                 let output = AVCaptureVideoDataOutput()
                 output.alwaysDiscardsLateVideoFrames = true
                 output.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange]
@@ -37,13 +66,19 @@ final class VideoRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
                 self.session.addOutput(output)
                 if let connection = output.connection(with: .video), connection.isVideoOrientationSupported {
                     connection.videoOrientation = .portrait
+                    #if os(iOS)
+                    if connection.isVideoStabilizationSupported { connection.preferredVideoStabilizationMode = .off }
+                    #endif
+                    if connection.isVideoMirroringSupported {
+                        connection.automaticallyAdjustsVideoMirroring = false; connection.isVideoMirrored = front
+                    }
                 }
                 self.session.commitConfiguration()
                 configuring = false
                 let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
                 let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
                     AVVideoCodecKey: AVVideoCodecType.h264,
-                    AVVideoWidthKey: 720, AVVideoHeightKey: 1280
+                    AVVideoWidthKey: 720, AVVideoHeightKey: 1280, AVVideoScalingModeKey: AVVideoScalingModeResizeAspect
                 ])
                 input.expectsMediaDataInRealTime = true
                 guard writer.canAdd(input) else { throw Self.error("تعذّر تجهيز ملف الفيديو.") }
@@ -104,6 +139,25 @@ final class VideoRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
 }
 
 enum RecordingExport {
+    static func validateMovie(_ url: URL) async throws {
+        let asset = AVURLAsset(url: url)
+        let duration = try await asset.load(.duration)
+        let audio = try await asset.loadTracks(withMediaType: .audio)
+        let video = try await asset.loadTracks(withMediaType: .video)
+        guard duration.seconds.isFinite, duration.seconds > 0, !audio.isEmpty, !video.isEmpty else {
+            throw VideoRecorder.error("ملف الفيديو غير مكتمل؛ احتُفظ بالصوت الأصلي.")
+        }
+    }
+    static func audioOnlyAsset(_ url: URL) async throws -> AVMutableComposition {
+        let asset = AVURLAsset(url: url)
+        guard let track = try await asset.loadTracks(withMediaType: .audio).first else { throw VideoRecorder.error("لم يوجد صوت في هذا التسجيل.") }
+        let composition = AVMutableComposition()
+        guard let output = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) else { throw VideoRecorder.error("تعذّر تشغيل الصوت.") }
+        let range = try await track.load(.timeRange)
+        try output.insertTimeRange(range, of: track, at: .zero)
+        return composition
+    }
+
     // A single reusable portrait cover; the original wet audio is never processed again.
     static func audioMovie(audio: URL, destination: URL) async throws {
         let asset = AVURLAsset(url: audio)
@@ -198,4 +252,3 @@ enum RecordingExport {
         guard exporter.status == .completed else { throw exporter.error ?? VideoRecorder.error("لم يكتمل دمج الفيديو. الصوت محفوظ.") }
     }
 }
-

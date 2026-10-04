@@ -55,6 +55,14 @@ import Foundation
         }
         precondition(reader.status == .completed && energy > 1)
         print("PASS: MP4 exports one video and supplied audio track, trims offset and decodes non-silent audio")
+        try await RecordingExport.validateMovie(result)
+        let soundOnly = try await RecordingExport.audioOnlyAsset(result)
+        let soundOnlyTracks = try await soundOnly.loadTracks(withMediaType: .audio)
+        let noVideo = try await soundOnly.loadTracks(withMediaType: .video)
+        let soundOnlyDuration = try await soundOnly.load(.duration).seconds
+        precondition(soundOnlyTracks.count == 1 && noVideo.isEmpty && abs(soundOnlyDuration - duration) < 0.03)
+        do { try await RecordingExport.validateMovie(audio); preconditionFailure("WAV must not permit intermediate deletion") } catch {}
+        print("PASS: a single MP4 supports audio-only playback without a video track; incomplete movies fail validation before source cleanup")
         let audioMovie = root.appendingPathComponent("audio-cover.mp4")
         try await RecordingExport.audioMovie(audio: audio, destination: audioMovie)
         let coverAsset = AVURLAsset(url: audioMovie)

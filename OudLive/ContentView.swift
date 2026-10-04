@@ -5,6 +5,8 @@ import AVKit
 struct ContentView: View {
     @ObservedObject var audio: AudioModel
     @State private var page = 0
+    @AppStorage("OudLive.era") private var eraRaw = AppEra.eighties.rawValue
+    private var era: AppEra { AppEra(rawValue: eraRaw) ?? .eighties }
     @State private var showHelp = false
     @State private var showSave = false
     @State private var soundName = ""
@@ -14,9 +16,9 @@ struct ContentView: View {
     @AppStorage("OudLive.palette") private var paletteRaw = AppPalette.original.rawValue
     private var palette: AppPalette { AppPalette(rawValue: paletteRaw) ?? .original }
     private var theme: AppTheme { AppTheme(rawValue: themeRaw) ?? .studio }
-    private var gold: Color { palette.accent(theme) }
-    private var mint: Color { theme == .simple || palette != .original ? palette.accent(theme) : Color(red: 0.2, green: 0.85, blue: 0.72) }
-    private var surface: Color { palette.panel(theme) }
+    private var gold: Color { era.accent(theme, palette) }
+    private var mint: Color { theme == .simple || palette != .original ? era.accent(theme, palette) : Color(red: 0.2, green: 0.85, blue: 0.72) }
+    private var surface: Color { era.panel(theme, palette) }
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
@@ -33,9 +35,9 @@ struct ContentView: View {
                     .font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity)
             }.padding(20).frame(maxWidth: 740).frame(maxWidth: .infinity)
         }
-        .background(palette.background(theme))
-        .foregroundStyle(theme.ink)
-        .preferredColorScheme(theme == .simple ? .light : .dark)
+        .background(era.background(theme, palette))
+        .foregroundStyle(era.ink(theme))
+        .preferredColorScheme(era == .eighties || (era == .modern && theme == .simple) ? .light : .dark)
         .tint(gold)
         .safeAreaInset(edge: .bottom) { transport }
         .sheet(isPresented: $showHelp) { help }
@@ -44,10 +46,12 @@ struct ContentView: View {
             Button("حفظ") { audio.saveSound(soundName); soundName = "" }
             Button("إلغاء", role: .cancel) {}
         } message: { Text("يحفظ المؤثرات ومفاتيح تشغيلها لوضع العود أو الصوت البشري.") }
+        .environment(\.oudEra, era)
         .environment(\.oudTheme, theme)
         .environment(\.oudPalette, palette)
         .onAppear {
             #if DEBUG
+            for option in AppEra.allCases where ProcessInfo.processInfo.arguments.contains("--era-" + option.rawValue) { eraRaw = option.rawValue }
             for option in AppPalette.allCases where ProcessInfo.processInfo.arguments.contains("--palette-" + option.rawValue) { paletteRaw = option.rawValue }
             for option in AppTheme.allCases where ProcessInfo.processInfo.arguments.contains("--theme-" + option.rawValue) { themeRaw = option.rawValue }
             if ProcessInfo.processInfo.arguments.contains("--preview-effects") { page = 1 }
@@ -59,11 +63,15 @@ struct ContentView: View {
     private var header: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text("عود لايف").font(.largeTitle.bold()).foregroundStyle(gold)
+                Text("عود لايف").font(.system(size: 30, weight: .black, design: era == .eighties ? .serif : .default)).foregroundStyle(era.ink(theme))
+                Text(era.badge).font(.system(size: 10, weight: .bold, design: .monospaced)).tracking(2).foregroundStyle(gold)
             }
             Spacer()
             Menu {
-                Picker("شكل التطبيق", selection: $themeRaw) {
+                Picker("حقبة التصميم", selection: $eraRaw) {
+                    ForEach(AppEra.allCases) { Text($0.title).tag($0.rawValue) }
+                }
+                Picker("طريقة العرض", selection: $themeRaw) {
                     ForEach(AppTheme.allCases) { option in Label(option.title, systemImage: option.icon).tag(option.rawValue) }
                 }
                 Picker("ألوان التطبيق", selection: $paletteRaw) {
@@ -134,6 +142,7 @@ struct ContentView: View {
                 } label: { Label("أصواتي المحفوظة", systemImage: "bookmark.fill").frame(minHeight: 44) }
             }
             PerformanceModes(audio: audio, openEffects: { page = 1 }, openRecording: { page = 3 })
+            QuickSoundBank(audio: audio)
         }
     }
     private var effects: some View {
@@ -152,9 +161,7 @@ struct ContentView: View {
             }.card()
             VStack(spacing: 18) {
                 effectHeading("الحركة", icon: "waveform.path", effect: .motion)
-                Picker("طابع الحركة", selection: Binding(get: { audio.value(.flanger) > 0.5 ? 1 : 0 }, set: { audio.set(.flanger, Double($0)) })) {
-                    Text("Chorus • امتلاء").tag(0); Text("Flanger • تموّج").tag(1)
-                }.pickerStyle(.segmented)
+                control(.flanger)
                 Text("الكورس يضيف طبقات متقاربة للامتلاء؛ الفلانجر يعطي تموّجًا بنبرة معدنية. الطابعان بديلان في هذه الوحدة.").font(.caption).foregroundStyle(.secondary)
                 control(.modulation); control(.modRate)
             }.card()
@@ -206,7 +213,7 @@ struct ContentView: View {
                 Button { audio.toggle() } label: {
                     Label(audio.starting ? "إلغاء" : (audio.running ? "إيقاف" : "ابدأ المعالجة"), systemImage: audio.running ? "stop.fill" : "play.fill")
                         .font(.title3.bold()).frame(maxWidth: .infinity, minHeight: 56)
-                        .foregroundStyle(theme.onAccent).background(gold, in: RoundedRectangle(cornerRadius: theme.radius))
+                        .foregroundStyle(era.onAccent(theme)).background(gold, in: RoundedRectangle(cornerRadius: era.radius(theme)))
                 }.buttonStyle(.plain)
                 Button { audio.set(.mute, audio.value(.mute) > 0.5 ? 0 : 1) } label: {
                     Label(audio.value(.mute) > 0.5 ? "السماعة مكتومة" : "كتم السماعة", systemImage: "speaker.slash.fill")
@@ -222,12 +229,11 @@ struct ContentView: View {
         Label(title, systemImage: icon).font(.headline).foregroundStyle(gold).frame(maxWidth: .infinity, alignment: .leading)
     }
     private func effectHeading(_ title: String, icon: String, effect: Effect) -> some View {
-        Toggle(isOn: Binding(get: { audio.settings.enabled(effect) }, set: { audio.setEnabled(effect, $0) })) {
-            VStack(alignment: .leading, spacing: 4) {
-                heading(title, icon: icon)
-                Text(audio.settings.enabled(effect) ? "مفعّل" : "متوقف • الإعدادات محفوظة").font(.caption).foregroundStyle(.secondary)
-            }
-        }.accessibilityLabel("تفعيل \(title)")
+        HStack {
+            heading(title, icon: icon)
+            EffectPowerLight(audio: audio, effect: effect).frame(width: 100)
+        }
+
     }
     private func control(_ p: Parameter) -> some View {
         ThemeParameterControl(audio: audio, parameter: p)
@@ -237,7 +243,8 @@ struct ContentView: View {
         let normalized = Double(max(0, min(1, (decibels + 60) / 60)))
         return HStack(spacing: 10) {
             Text(label).font(.caption).frame(width: 42, alignment: .leading)
-            if theme == .simple { ProgressView(value: normalized).tint(value > 0.9 ? .orange : mint) }
+            if era != .modern { EraMeter(level: value) }
+            else if theme == .simple { ProgressView(value: normalized).tint(value > 0.9 ? .orange : mint) }
             else { SignalLED(level: value, tint: mint, lights: reactiveLights) }
             Text(value < 0.0001 ? "—" : String(format: "%.0f dB", decibels)).font(.caption.monospacedDigit()).foregroundStyle(.secondary).frame(width: 58).environment(\.layoutDirection, .leftToRight)
         }.accessibilityElement(children: .ignore).accessibilityLabel(label).accessibilityValue(String(format: "%.0f ديسيبل", decibels))
@@ -248,7 +255,7 @@ struct ContentView: View {
                 VStack(alignment: .leading, spacing: 22) {
                     Text("اصنع مساحتك الصوتية").font(.title.bold())
                     Text("من زر الشكل أعلى الشاشة اختر استوديو للمقابض الدقيقة، بسيط للأصوات بضغطة، أو مسرح للمفاتيح الكبيرة. كل الأشكال تصل إلى المؤثرات والتسجيل والتوصيل. تغيير الشكل لا يغيّر الصوت.")
-                    Text("إضاءة المسرح تتبع مستوى الصوت المعالج مع حالة المؤثر؛ ليست مقياسًا منفصلًا لكل وحدة. يمكنك إطفاء الوهج وإخفاء الشروح من قائمة الشكل. المقابض تُضبط بالسحب لأعلى وأسفل أو عبر شريط التحكم في صفحة المؤثرات.")
+                    Text("إضاءة المسرح تتبع مستوى الصوت المعالج مع حالة المؤثر؛ ليست مقياسًا منفصلًا لكل وحدة. يمكنك إطفاء الوهج وإخفاء الشروح من قائمة الشكل. المقابض تُضبط بالسحب لأعلى وأسفل وبأزرار + و− للضبط الدقيق. اختر الثمانينات للنيكل والمقابض المعدنية، التسعينات لشاشة رقمية ولمبات خضراء، والألفينات للزجاج. الحقبة مستقلة عن طريقة العرض.")
                     Text("١. يمكنك التسجيل مباشرة بدون سماعة من صفحة التسجيل. للاستماع المباشر وصّل سماعة، ثم ابدأ المعالجة واسمح بالميكروفون.")
                     Text("٢. جرّب قاعة كبيرة للصدى القوي، أو فخم / ثقيل للامتلاء. ارفع تقوية الالتقاط تدريجيًا بزر +6 dB إذا كان الصوت ضعيفًا.")
                     Text("٣. قوة المؤثرات تغيّر كمية الصدى والحركة معًا. من صفحة المؤثرات اضبط طول الذيل وفاصل البداية، واضغط مرتين لضبط الصدى على إيقاعك.")
@@ -266,14 +273,15 @@ struct ContentView: View {
 private struct AudioOutputPicker: UIViewRepresentable {
     @Environment(\.oudTheme) private var theme
     @Environment(\.oudPalette) private var palette
+    @Environment(\.oudEra) private var era
     func makeUIView(context: Context) -> AVRoutePickerView {
         let view = AVRoutePickerView(frame: .zero)
         view.prioritizesVideoDevices = false
-        view.tintColor = UIColor(palette.accent(theme))
+        view.tintColor = UIColor(era.accent(theme, palette))
         view.activeTintColor = UIColor(red: 0.39, green: 0.83, blue: 0.74, alpha: 1)
         return view
     }
-    func updateUIView(_ uiView: AVRoutePickerView, context: Context) { uiView.tintColor = UIColor(palette.accent(theme)) }
+    func updateUIView(_ uiView: AVRoutePickerView, context: Context) { uiView.tintColor = UIColor(era.accent(theme, palette)) }
 }
 
 private extension View {

@@ -8,12 +8,13 @@ xcrun simctl boot "$DEVICE" || true
 xcrun simctl bootstatus "$DEVICE" -b
 xcodebuild -project OudLive.xcodeproj -scheme OudLive -configuration Debug \
   -sdk iphonesimulator -destination "id=$DEVICE" -derivedDataPath build/Simulator \
-  CODE_SIGNING_ALLOWED=NO build > build/simulator.log 2>&1
+  CODE_SIGNING_ALLOWED=NO build > build/simulator.log 2>&1 || { tail -n 80 build/simulator.log; exit 1; }
 xcrun simctl install "$DEVICE" build/Simulator/Build/Products/Debug-iphonesimulator/OudLive.app
 for PAGE in studio simple stage effects connection recording; do
   PALETTE=original
-  case "$PAGE" in studio) PALETTE=gold;; simple) PALETTE=rose;; stage) PALETTE=violet;; esac
-  xcrun simctl launch "$DEVICE" com.oudlive.personal "--preview-$PAGE" "--theme-$PAGE" "--palette-$PALETTE"
+  ERA=eighties
+  case "$PAGE" in simple) ERA=nineties;; stage) ERA=modern;; esac
+  xcrun simctl launch "$DEVICE" com.oudlive.personal "--preview-$PAGE" "--theme-$PAGE" "--palette-$PALETTE" "--era-$ERA"
   sleep 3
   xcrun simctl io "$DEVICE" screenshot "build/$PAGE.png"
   sips --resampleWidth 430 "build/$PAGE.png" --out "build/$PAGE-preview.png" >/dev/null
@@ -28,4 +29,3 @@ for name in ['studio','simple','stage','effects','connection','recording']:
     encoded=base64.b64encode(Path('build/'+name+'-preview.png').read_bytes()).decode()
     for i in range(0,len(encoded),6000): print('OUD_SCREEN_'+name+':'+encoded[i:i+6000])
 PY
-

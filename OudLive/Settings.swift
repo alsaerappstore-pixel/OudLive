@@ -42,6 +42,7 @@ enum Parameter: Int, CaseIterable {
         case .feedback: return "تكرار الصدى"
         case .modulation: return "عمق التأثير"
         case .modRate: return "سرعة الحركة"
+        case .flanger: return "طابع الحركة"
         case .doubler: return "توسيع • Doubler"
         case .decay: return "طول ذيل الصدى"
         case .predelay: return "فاصل قبل الصدى"
@@ -66,6 +67,7 @@ enum Parameter: Int, CaseIterable {
         case .feedback: return "يزيد عدد التكرارات ومدة بقائها قبل أن تتلاشى."
         case .modulation: return "يحدد مقدار الامتلاء أو التموج حسب طابع الحركة المختار."
         case .modRate: return "يحدد سرعة تحرك طبقات الكورس أو تموّج الفلانجر."
+        case .flanger: return "لف من الكورس الممتلئ إلى الفلانجر المعدني؛ المنتصف يمزج الطابعين."
         case .doubler: return "يضيف طبقة قصيرة متأخرة لإحساس قريب من عزف عودين معًا."
         case .decay: return "يحدد مدة بقاء رنين المكان بعد توقف العزف."
         case .predelay: return "يترك فراغًا قبل الرنين لتظل بداية النغمة واضحة."
@@ -81,6 +83,7 @@ enum Parameter: Int, CaseIterable {
         case .delayTime, .predelay: return String(format: "%.0f ms", value)
         case .decay: return String(format: "%.1f s", value)
         case .modRate: return String(format: "%.1f Hz", value)
+        case .flanger: return value < 0.01 ? "كورس" : (value > 0.99 ? "فلانجر" : String(format: "مزج %.0f%%", value * 100))
         default: return String(format: "%.0f%%", value * 100)
         }
     }
@@ -225,6 +228,7 @@ struct RecordingPreset: Identifiable {
         for (p, value) in zip(parameters, controls) { s[p] = value }
         for p in [Parameter.input, .output, .recordGain, .mute] { s[p] = current[p] }
         s[.bypass] = 0; s[.intensity] = 1
+        if s[.reverb] == 0 { s.disabledEffects.insert(.reverb) }
         if s[.delay] == 0 { s.disabledEffects.insert(.delay) }
         if s[.modulation] == 0 { s.disabledEffects.insert(.motion) }
         if s[.doubler] == 0 { s.disabledEffects.insert(.doubler) }
@@ -233,20 +237,33 @@ struct RecordingPreset: Identifiable {
         return s
     }
     static let all: [RecordingPreset] = [
-        RecordingPreset(id: 1, name: "الأصالة", description: "دفء الثمانينات: لمعان أخف وصدى داكن وحركة خفيفة", controls: [1, 1, -3, 0.22, 1, 0.28, 2.4, 24, 0.24, 0.12, 145, 0.15, 0.08, 0.28, 0, 0]),
-        RecordingPreset(id: 2, name: "ريشة حادّة", description: "حضور ولمعان بارزان مع صدى قصير يحفظ الهجوم", controls: [-2, 2.5, 3, 0.12, 0.5, 0.1, 0.65, 18, 0.75, 0, 180, 0, 0, 0.7, 0, 0]),
-        RecordingPreset(id: 3, name: "نقاء", description: "نبرة شبه محايدة ومساحة طفيفة دون ضغط أو حركة", controls: [-0.5, 0, 0.5, 0, 0, 0.06, 0.55, 12, 0.55, 0, 220, 0, 0, 0.7, 0, 0]),
-        RecordingPreset(id: 4, name: "عمق القاعة", description: "رنين عميق طويل مع فصل الريشة عن بداية الصدى", controls: [0.5, -1, -0.5, 0.12, 0.5, 0.62, 5.8, 65, 0.22, 0.1, 530, 0.28, 0, 0.7, 0, 0]),
-        RecordingPreset(id: 5, name: "مجلس خشبي", description: "مساحة قصيرة دافئة وقريبة للعزف الجماعي", controls: [1.5, -1, -1, 0.16, 0.7, 0.3, 0.9, 8, 0.32, 0, 200, 0, 0, 0.7, 0, 0]),
-        RecordingPreset(id: 6, name: "وتر حريري", description: "تنعيم الريشة والأوتار العليا مع ضغط لطيف", controls: [0.5, -1.5, -4, 0.3, 1.5, 0.17, 1.6, 20, 0.18, 0, 240, 0, 0, 0.7, 0, 0]),
-        RecordingPreset(id: 7, name: "قرار عميق", description: "إبراز القرار مع تهدئة الحضور وصدى محدود", controls: [3, -2, -1.5, 0.2, 1, 0.13, 1.1, 26, 0.3, 0, 280, 0, 0, 0.7, 0, 0]),
-        RecordingPreset(id: 8, name: "بريق زجاجي", description: "لمعان فضي ورنين مشرق أطول دون تكرارات", controls: [-1.5, -1, 2.5, 0.08, 0.3, 0.34, 2.9, 42, 0.92, 0, 320, 0, 0, 0.7, 0, 0]),
-        RecordingPreset(id: 9, name: "رجع خاطف", description: "رجعة قصيرة واحدة تبرز الجمل الإيقاعية", controls: [0, 1, -0.5, 0.18, 0.8, 0.07, 0.6, 6, 0.45, 0.38, 95, 0.04, 0, 0.7, 0, 0]),
-        RecordingPreset(id: 10, name: "نبض متكرر", description: "تكرارات واضحة متوسطة للعزف على نبض ثابت", controls: [-1, 0.5, 0.5, 0.15, 0.6, 0.12, 1.3, 28, 0.5, 0.35, 300, 0.36, 0, 0.7, 0, 0]),
-        RecordingPreset(id: 11, name: "حوار الوادي", description: "رد متأخر بين الجمل مع تكرارات قليلة داكنة", controls: [0, 1, -1, 0.1, 0.4, 0.22, 2.1, 46, 0.28, 0.38, 680, 0.24, 0, 0.7, 0, 0]),
-        RecordingPreset(id: 12, name: "وتران", description: "طبقة قصيرة إضافية توحي بعزف عودين", controls: [0, -0.5, 1, 0.15, 0.6, 0.1, 0.8, 15, 0.6, 0, 250, 0, 0, 0.7, 0, 0.3]),
-        RecordingPreset(id: 13, name: "موج ناعم", description: "كورس بطيء واضح يحرّك النغمة دون صدى متكرر", controls: [-0.5, 0, -0.5, 0.12, 0.5, 0.2, 1.8, 30, 0.42, 0, 360, 0, 0.32, 0.38, 0, 0]),
-        RecordingPreset(id: 14, name: "طيف معدني", description: "فلانجر رقيق بتموّج معدني مميز للجمل التجريبية", controls: [-1, 1, 0, 0.1, 0.4, 0.1, 0.7, 10, 0.62, 0, 260, 0, 0.24, 0.62, 1, 0]),
-        RecordingPreset(id: 15, name: "أفق سينمائي", description: "مساحة ممتدة لامعة وكورس بطيء خلف النغمة", controls: [-2, -0.5, 1, 0.1, 0.4, 0.53, 6.8, 85, 0.64, 0.2, 920, 0.4, 0.14, 0.16, 0, 0.08])
+        RecordingPreset(id: 1, name: "الأصالة", description: "دفء قديم واضح: نبرة داكنة ورجعة قصيرة وحركة بطيئة", controls: [3, -3, -7, 0.28, 1, 0.48, 2.1, 15, 0.12, 0.3, 125, 0.1, 0.18, 0.22, 0, 0]),
+        RecordingPreset(id: 2, name: "ريشة حادّة", description: "ريشة حادة وجافة: حضور مرتفع وقرار أخف", controls: [-5, 6, 6, 0.1, 0, 0.04, 0.45, 8, 0.85, 0, 180, 0, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 3, name: "نقاء", description: "صوت جاف محايد: دون صدى أو حركة أو ضغط", controls: [0, 0, 0, 0, 0, 0, 0.4, 0, 0.5, 0, 220, 0, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 4, name: "عمق القاعة", description: "قاعة عميقة جدًا بذيل داكن وفاصل واضح قبل الصدى", controls: [1, -2, -2, 0.1, 0, 0.88, 6.4, 75, 0.1, 0.16, 540, 0.28, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 5, name: "مجلس خشبي", description: "جسم خشبي بارز مع انعكاسات غرفة قصيرة", controls: [1, 5, -4, 0.15, 0.5, 0.62, 0.7, 4, 0.3, 0, 200, 0, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 6, name: "وتر حريري", description: "ريشة مخملية: تخفيف قوي للحضور واللمعان", controls: [-1, -5, -8, 0.36, 2, 0.28, 2.5, 30, 0.08, 0, 240, 0, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 7, name: "قرار عميق", description: "قرار ممتلئ بارز وجسم عميق مع صدى محدود", controls: [7, -4, -2, 0.18, 0.5, 0.08, 0.6, 18, 0.2, 0, 280, 0, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 8, name: "بريق زجاجي", description: "رنين لامع زجاجي طويل وقرار خفيف", controls: [-6, -2, 7, 0.05, 0, 0.6, 3.6, 55, 1, 0, 320, 0, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 9, name: "رجع خاطف", description: "رجعة خاطفة واضحة بعد الريشة بلا سلسلة تكرارات", controls: [0, 1, 0, 0.1, 0, 0.03, 0.4, 0, 0.5, 0.7, 85, 0, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 10, name: "نبض متكرر", description: "تكرارات متوسطة منتظمة وواضحة بين الضربات", controls: [-2, 0, 1, 0.12, 0.3, 0.08, 1.1, 20, 0.5, 0.62, 285, 0.46, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 11, name: "حوار الوادي", description: "رد بعيد بعد الجملة مع تكرار داكن طويل", controls: [0, 2, -3, 0.08, 0, 0.18, 2.2, 40, 0.18, 0.72, 720, 0.32, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 12, name: "وتران", description: "عود مضاعف: طبقتان قصيرتان تمنحان عرضًا واضحًا", controls: [0, -1, 2, 0.1, 0.3, 0.05, 0.5, 8, 0.6, 0, 250, 0, 0, 0.7, 0, 0.68]),
+        RecordingPreset(id: 13, name: "موج ناعم", description: "كورس واسع بتموّج بطيء وواضح", controls: [-1, 0, -1, 0.1, 0, 0.12, 1.5, 25, 0.4, 0, 360, 0, 0.68, 0.45, 0, 0]),
+        RecordingPreset(id: 14, name: "طيف معدني", description: "فلانجر معدني متحرك بطابع تجريبي واضح", controls: [-2, 2, 1, 0.08, 0, 0.05, 0.5, 8, 0.6, 0, 260, 0, 0.78, 1.1, 1, 0]),
+        RecordingPreset(id: 15, name: "أفق سينمائي", description: "أفق طويل مشرق: صدى بعيد وطبقات بطيئة", controls: [-3, -1, 3, 0.1, 0, 0.82, 7, 95, 0.72, 0.36, 1050, 0.5, 0.3, 0.14, 0, 0.15])
     ]
+}
+
+
+struct SoundBank: Codable {
+    var slots: [NamedSound?] = Array(repeating: nil, count: 8)
+    var valid: Bool { slots.count == 8 && slots.compactMap { $0 }.allSatisfy { $0.settings.valid } }
+    mutating func save(_ sound: NamedSound, at index: Int) {
+        guard slots.indices.contains(index), sound.settings.valid else { return }
+        slots[index] = sound
+    }
+    mutating func clear(_ index: Int) {
+        guard slots.indices.contains(index) else { return }; slots[index] = nil
+    }
 }

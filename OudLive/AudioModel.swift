@@ -102,7 +102,9 @@ final class AudioModel: ObservableObject {
     private var activeRouteKey = ""
     private var lastTap: Date?
 
+    @Published private(set) var soundBank = SoundBank()
     init() {
+        if let data = UserDefaults.standard.data(forKey: "OudLive.soundBank.v1"), let bank = try? JSONDecoder().decode(SoundBank.self, from: data), bank.valid { soundBank = bank }
         if let data = UserDefaults.standard.data(forKey: storageKey),
            let stored = try? JSONDecoder().decode(SavedSettings.self, from: data), stored.valid {
             saved = stored
@@ -211,6 +213,15 @@ final class AudioModel: ObservableObject {
         settings[.recordGain] = recordGain
         apply(); save()
     }
+    func saveSlot(_ index: Int, name: String) {
+        let text = String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(24))
+        soundBank.save(NamedSound(name: text.isEmpty ? "صوتي \(index + 1)" : text, mode: mode, settings: settings), at: index)
+        persistBank(); message = "حُفظ تخصيصك في الخانة \(index + 1)."
+    }
+    func clearSlot(_ index: Int) { soundBank.clear(index); persistBank() }
+    private func persistBank() {
+        if let data = try? JSONEncoder().encode(soundBank) { UserDefaults.standard.set(data, forKey: "OudLive.soundBank.v1") }
+    }
     func deleteSound(_ id: UUID) { namedSounds.removeAll { $0.id == id }; persistSounds() }
     private func persistSounds() {
         if let data = try? JSONEncoder().encode(namedSounds) { UserDefaults.standard.set(data, forKey: "OudLive.namedSounds.v1") }
@@ -308,14 +319,16 @@ extension AudioModel {
         recordings = ((try? FileManager.default.contentsOfDirectory(at: recordingsDirectory, includingPropertiesForKeys: nil)) ?? [])
             .filter { ["wav", "mp4"].contains($0.pathExtension.lowercased()) }.sorted { $0.lastPathComponent > $1.lastPathComponent }
     }
-    func deleteRecording(_ url: URL) {
-        guard !recording, !recordingPreparing, !recordingFinishing,
-              recordings.contains(url), url.isFileURL,
-              url.resolvingSymlinksInPath().deletingLastPathComponent() == recordingsDirectory.resolvingSymlinksInPath() else { return }
-        do {
-            try FileManager.default.removeItem(at: url)
-            refreshRecordings(); message = "حُذف التسجيل المحدد."
-        } catch { message = "تعذّر حذف التسجيل: \(error.localizedDescription)" }
+    var recordingEntries: [RecordingEntry] { RecordingEntry.grouped(recordings) }
+    func deleteRecordings(_ selected: Set<URL>) {
+        guard !recording, !recordingPreparing, !recordingFinishing, savingToPhotos == nil else { return }
+        let urls = RecordingEntry.deletionURLs(recordingEntries, selected: selected, directory: recordingsDirectory)
+        var failures = 0
+        for url in urls {
+            do { try FileManager.default.removeItem(at: url) } catch { failures += 1 }
+        }
+        refreshRecordings()
+        message = failures == 0 ? "حُذفت التسجيلات المحددة من التطبيق." : "تعذّر حذف بعض الملفات؛ بقيت ظاهرة في تسجيلاتي."
     }
     func beginRecording(video: Bool, front: Bool) {
         guard !starting, !recording, !recordingPreparing, !recordingFinishing else {
@@ -421,7 +434,10 @@ extension AudioModel {
                     if let audioError { throw audioError }
                     let videoStart = try result.get()
                     try await RecordingExport.combine(audio: audioURL, video: videoURL, audioStart: audioStart, videoStart: videoStart, destination: destination)
-                    self.message = "حُفظ الفيديو بصوت التأثيرات، ومعه نسخة صوتية منفصلة."
+                    // Remove the intermediate only after export completed and validated.
+                    try await RecordingExport.validateMovie(destination)
+                    try? FileManager.default.removeItem(at: audioURL)
+                    self.message = "حُفظ تسجيل واحد؛ يمكنك تشغيله صوتًا أو فيديو."
                 } catch {
                     try? FileManager.default.removeItem(at: destination)
                     self.message = "تعذّر تجهيز الفيديو: \(error.localizedDescription) راجع النسخة الصوتية في تسجيلاتي."
