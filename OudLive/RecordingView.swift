@@ -214,6 +214,7 @@ struct CameraPreview: UIViewRepresentable {
         return view
     }
     func updateUIView(_ view: PreviewSurface, context: Context) {
+        if view.preview.session !== session { view.preview.session = session }
         if let connection = view.preview.connection, connection.isVideoOrientationSupported { connection.videoOrientation = orientation }
     }
 }

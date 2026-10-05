@@ -20,6 +20,7 @@ struct ConsoleView: View {
     var body: some View {
         GeometryReader { geometry in
             let wide = geometry.size.width > geometry.size.height
+            ScrollViewReader { scroll in
             ScrollView {
                 VStack(spacing: wide ? 12 : 16) {
                     header(wide: wide)
@@ -35,7 +36,7 @@ struct ConsoleView: View {
                         inputPanel(compact: true)
                         cameraPanel(height: 212)
                     }
-                    effectRack(wide: wide)
+                    effectRack(wide: wide).id("console-rack")
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
                             Label("خاناتي المحفوظة", systemImage: "square.grid.2x2").font(.headline)
@@ -52,6 +53,15 @@ struct ConsoleView: View {
             .onChange(of: wide) { _ in
                 if audio.cameraSession != nil && !busy && !audio.cameraPreviewPreparing { audio.openCameraPreview(front: audio.frontCamera) }
             }
+            .task {
+                #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("--console-rack") {
+                    try? await Task.sleep(nanoseconds: 700_000_000)
+                    scroll.scrollTo("console-rack", anchor: .top)
+                }
+                #endif
+            }
+            }
         }
         .preferredColorScheme(.dark).foregroundStyle(.white).tint(blue)
         .environment(\.oudTheme, .studio).environment(\.oudEra, .modern).environment(\.oudPalette, .ice)
@@ -63,7 +73,7 @@ struct ConsoleView: View {
         .task {
             #if DEBUG
             let arguments = ProcessInfo.processInfo.arguments
-            if true {
+            do {
                 try? await Task.sleep(nanoseconds: 300_000_000)
                 if let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first {
                     scene.requestGeometryUpdate(.iOS(interfaceOrientations: arguments.contains("--console-landscape") ? .landscapeRight : .portrait))
