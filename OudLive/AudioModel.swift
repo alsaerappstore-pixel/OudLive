@@ -66,6 +66,66 @@ final class AudioModel: ObservableObject {
     @Published private(set) var recordingSeconds = 0
     @Published private(set) var recordings: [URL] = []
     @Published private(set) var cameraSession: AVCaptureSession?
+    @Published private(set) var cameraPreviewPreparing = false
+    @Published private(set) var frontCamera = true
+    @Published private(set) var cameraOrientation: AVCaptureVideoOrientation = .portrait
+    @Published private(set) var savingSnapshot = false
+    private var previewGeneration = 0
+    private func currentCameraOrientation() -> AVCaptureVideoOrientation {
+        let orientation = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first(where: { $0.activationState == .foregroundActive })?.interfaceOrientation
+        switch orientation { case .landscapeLeft: return .landscapeLeft; case .landscapeRight: return .landscapeRight; case .portraitUpsideDown: return .portraitUpsideDown; default: return .portrait }
+    }
+    func closeCameraPreview() {
+        guard !recording, !recordingPreparing, !recordingFinishing else { return }
+        previewGeneration += 1; cameraPreviewPreparing = false
+        let old = camera, url = cameraURL
+        camera = nil; cameraSession = nil; cameraURL = nil
+        old?.finish { _ in if let url { try? FileManager.default.removeItem(at: url) } }
+    }
+    func openCameraPreview(front: Bool = true) {
+        guard !recording, !recordingPreparing, !recordingFinishing, !cameraPreviewPreparing else { return }
+        closeCameraPreview()
+        previewGeneration += 1; let token = previewGeneration
+        cameraPreviewPreparing = true; frontCamera = front
+        Task {
+            let allowed = await AVCaptureDevice.requestAccess(for: .video)
+            guard token == previewGeneration else { return }
+            guard allowed else { cameraPreviewPreparing = false; message = "اسمح بالكاميرا من إعدادات الآيفون؛ تسجيل الصوت متاح دونها."; return }
+            let recorder = VideoRecorder()
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("OudLive-preview-" + UUID().uuidString + ".mov")
+            cameraOrientation = currentCameraOrientation()
+            camera = recorder; cameraURL = url
+            recorder.prepare(url: url, front: front, orientation: cameraOrientation) { [weak self] error in
+                guard let self, self.previewGeneration == token else {
+                    recorder.finish { _ in try? FileManager.default.removeItem(at: url) }; return
+                }
+                self.cameraPreviewPreparing = false
+                if let error {
+                    self.camera = nil; self.cameraURL = nil; self.message = error.localizedDescription
+                    try? FileManager.default.removeItem(at: url)
+                } else { self.cameraSession = recorder.session; self.message = "الكاميرا جاهزة • المعاينة لا تسجّل قبل الضغط على التسجيل." }
+            }
+        }
+    }
+    func takePhoto() {
+        guard let camera, cameraSession != nil, !savingSnapshot else { return }
+        savingSnapshot = true
+        camera.snapshot { [weak self] result in
+            guard let self else { return }
+            Task { @MainActor in
+                defer { self.savingSnapshot = false }
+                do {
+                    let data = try result.get()
+                    let permission = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
+                    guard permission == .authorized || permission == .limited else { throw VideoRecorder.error("اسمح بإضافة الصور من إعدادات الآيفون.") }
+                    try await PHPhotoLibrary.shared().performChanges {
+                        PHAssetCreationRequest.forAsset().addResource(with: .photo, data: data, options: nil)
+                    }
+                    self.photosNotice = "حُفظت لقطة الكاميرا في الصور."
+                } catch { self.photosNotice = "تعذّر حفظ اللقطة: \(error.localizedDescription)" }
+            }
+        }
+    }
     private var camera: VideoRecorder?
     private var recordingURL: URL?
     private var cameraURL: URL?
@@ -154,6 +214,7 @@ final class AudioModel: ObservableObject {
         NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification).receive(on: RunLoop.main).sink { [weak self] _ in
             guard let self else { return }
             if self.recording || self.recordingPreparing { self.finishRecording() }
+            else { self.closeCameraPreview() }
         }.store(in: &subscriptions)
         NotificationCenter.default.publisher(for: AVAudioSession.mediaServicesWereResetNotification).receive(on: RunLoop.main).sink { [weak self] _ in
             self?.stop(); self?.message = "أُعيد تشغيل خدمة الصوت. اضغط ابدأ مجددًا."
@@ -297,6 +358,7 @@ final class AudioModel: ObservableObject {
     }
     func stop() {
         if recording || recordingPreparing { finishRecording() }
+        closeCameraPreview()
         generation += 1; starting = false; bridge.stop(); running = false
         inputLevel = 0; outputLevel = 0; limitingDB = 0; recordingLevel = 0; recordingLimiting = 0; monitoring = false; bridge.setMonitoringEnabled(false); UIApplication.shared.isIdleTimerDisabled = false
         try? session.setActive(false, options: .notifyOthersOnDeactivation)
@@ -331,6 +393,8 @@ extension AudioModel {
         message = failures == 0 ? "حُذفت التسجيلات المحددة من التطبيق." : "تعذّر حذف بعض الملفات؛ بقيت ظاهرة في تسجيلاتي."
     }
     func beginRecording(video: Bool, front: Bool) {
+        guard !cameraPreviewPreparing, savingToPhotos == nil else { message = "انتظر تجهيز الكاميرا أو انتهاء الحفظ."; return }
+        if !video { closeCameraPreview() }
         guard !starting, !recording, !recordingPreparing, !recordingFinishing else {
             message = "انتظر انتهاء التجهيز أو حفظ التسجيل السابق."; return
         }
@@ -359,10 +423,14 @@ extension AudioModel {
                 let name = "OudLive-" + date + "-" + UUID().uuidString.prefix(6)
                 let audioURL = recordingsDirectory.appendingPathComponent(name + ".wav")
                 if video {
+                    if camera != nil, cameraSession != nil, let readyURL = cameraURL {
+                        startRecordingFile(audioURL, cameraURL: readyURL); return
+                    }
+                    frontCamera = front; cameraOrientation = currentCameraOrientation()
                     let camera = VideoRecorder()
                     let videoURL = FileManager.default.temporaryDirectory.appendingPathComponent(name + ".mov")
                     self.camera = camera; cameraSession = camera.session
-                    camera.prepare(url: videoURL, front: front) { [weak self] error in
+                    camera.prepare(url: videoURL, front: front, orientation: cameraOrientation) { [weak self] error in
                         guard let self else { return }
                         guard self.running, self.recordingPreparing, self.recordingGeneration == token else {
                             camera.finish { _ in try? FileManager.default.removeItem(at: videoURL) }; return
@@ -384,18 +452,18 @@ extension AudioModel {
             recordingURL = url; self.cameraURL = cameraURL
             recordingDate = Date(); recordingSeconds = 0; recording = true; recordingPreparing = false
             camera?.begin()
-            message = cameraURL == nil ? "يسجّل الصوت المعالج الآن. مستوى التسجيل مستقل عن مستوى السماعة وكتمها." : "يسجّل الفيديو والصوت المعالج. أبقِ التطبيق مفتوحًا والهاتف عموديًا."
+            message = cameraURL == nil ? "يسجّل الصوت المعالج الآن. مستوى التسجيل مستقل عن مستوى السماعة وكتمها." : "يسجّل الفيديو والصوت المعالج. أبقِ التطبيق مفتوحًا وحافظ على اتجاه الهاتف."
         } catch {
             recordingPreparing = false; message = error.localizedDescription
             camera?.finish { _ in if let cameraURL { try? FileManager.default.removeItem(at: cameraURL) } }
-            camera = nil; cameraSession = nil
+            camera = nil; cameraSession = nil; self.cameraURL = nil
             try? FileManager.default.removeItem(at: url)
         }
     }
     func finishRecording() {
         recordingGeneration += 1
         if recordingPreparing {
-            recordingPreparing = false; cameraSession = nil; camera = nil; return
+            recordingPreparing = false; closeCameraPreview(); return
         }
         guard recording, let audioURL = recordingURL else { return }
         recording = false; recordingFinishing = true

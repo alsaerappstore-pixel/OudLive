@@ -10,14 +10,16 @@ xcodebuild -project OudLive.xcodeproj -scheme OudLive -configuration Debug \
   -sdk iphonesimulator -destination "id=$DEVICE" -derivedDataPath build/Simulator \
   CODE_SIGNING_ALLOWED=NO build > build/simulator.log 2>&1 || { tail -n 80 build/simulator.log; exit 1; }
 xcrun simctl install "$DEVICE" build/Simulator/Build/Products/Debug-iphonesimulator/OudLive.app
-for PAGE in studio simple stage effects connection recording memories; do
+for PAGE in portrait landscape effects library memories legacy; do
   PALETTE=original
   ERA=eighties
   case "$PAGE" in simple) ERA=nineties;; stage) ERA=modern;; esac
-  xcrun simctl launch "$DEVICE" com.oudlive.personal "--preview-$PAGE" "--theme-$PAGE" "--palette-$PALETTE" "--era-$ERA"
+  xcrun simctl launch "$DEVICE" com.oudlive.personal "--console-$PAGE" "--$PAGE" "--theme-studio" "--palette-$PALETTE" "--era-$ERA"
   sleep 3
   xcrun simctl io "$DEVICE" screenshot "build/$PAGE.png"
-  sips --resampleWidth 430 "build/$PAGE.png" --out "build/$PAGE-preview.png" >/dev/null
+  WIDTH=430
+  if [ "$PAGE" = landscape ]; then WIDTH=1000; fi
+  sips --resampleWidth "$WIDTH" "build/$PAGE.png" --out "build/$PAGE-preview.png" >/dev/null
   xcrun simctl terminate "$DEVICE" com.oudlive.personal
 done
 # Compact screenshots in diagnostic logs let a remote reviewer inspect the exact
@@ -25,7 +27,7 @@ done
 python3 - <<'PY'
 import base64
 from pathlib import Path
-for name in ['studio','simple','stage','effects','connection','recording','memories']:
+for name in ['portrait','landscape','effects','library','memories','legacy']:
     encoded=base64.b64encode(Path('build/'+name+'-preview.png').read_bytes()).decode()
     for i in range(0,len(encoded),6000): print('OUD_SCREEN_'+name+':'+encoded[i:i+6000])
 PY

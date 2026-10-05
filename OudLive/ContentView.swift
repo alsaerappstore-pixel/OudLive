@@ -74,6 +74,7 @@ struct ContentView: View {
             }
             Spacer()
             Menu {
+                Button("واجهة معالج العود الجديدة") { UserDefaults.standard.set(true, forKey: "OudLive.console") }
                 Picker("حقبة التصميم", selection: $eraRaw) {
                     ForEach(AppEra.allCases) { Text($0.title).tag($0.rawValue) }
                 }
@@ -276,7 +277,7 @@ struct ContentView: View {
     }
 }
 
-private struct AudioOutputPicker: UIViewRepresentable {
+struct AudioOutputPicker: UIViewRepresentable {
     @Environment(\.oudTheme) private var theme
     @Environment(\.oudPalette) private var palette
     @Environment(\.oudEra) private var era

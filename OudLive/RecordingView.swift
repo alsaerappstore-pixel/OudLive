@@ -4,6 +4,7 @@ import AVKit
 @MainActor
 struct RecordingView: View {
     @ObservedObject var audio: AudioModel
+    var libraryOnly = false
     @Environment(\.oudTheme) private var theme
     @Environment(\.oudPalette) private var palette
     @Environment(\.oudEra) private var era
@@ -17,6 +18,7 @@ struct RecordingView: View {
     private var entries: [RecordingEntry] { audio.recordingEntries }
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
+            if !libraryOnly {
             Text("سجّل عزفك").font(.title2.bold())
             Text("صوت المؤثرات محفوظ حتى بدون سماعة. الكتم ومستوى السماعة لا يغيّران التسجيل.").font(.caption).foregroundStyle(.secondary)
             Picker("نوع التسجيل", selection: $video) {
@@ -27,7 +29,7 @@ struct RecordingView: View {
                 Text("بدون تكبير رقمي أو قص لملء المعاينة. اتساع المشهد تحدده عدسة جهازك. أبقِ التطبيق مفتوحًا والهاتف عموديًا.").font(.caption).foregroundStyle(.secondary)
             }
             if let session = audio.cameraSession {
-                CameraPreview(session: session).aspectRatio(9 / 16, contentMode: .fit).frame(maxHeight: 380).background(.black).clipShape(RoundedRectangle(cornerRadius: era.radius(theme)))
+                CameraPreview(session: session, orientation: audio.cameraOrientation).aspectRatio(9 / 16, contentMode: .fit).frame(maxHeight: 380).background(.black).clipShape(RoundedRectangle(cornerRadius: era.radius(theme)))
             }
             if audio.recording {
                 Label(String(format: "%02d:%02d", audio.recordingSeconds / 60, audio.recordingSeconds % 60), systemImage: "record.circle").font(.title.monospacedDigit()).foregroundStyle(.red)
@@ -46,6 +48,7 @@ struct RecordingView: View {
                 SignalLED(level: audio.recordingLevel, tint: audio.recordingLimiting > 3 ? .orange : .green)
                 Text(audio.recordingLimiting > 3 ? "خفّض التسجيل أو الالتقاط؛ حماية القمم تعمل بقوة." : "قرّب الميكروفون وارفع المستوى تدريجيًا.").font(.caption).foregroundStyle(.secondary)
             }.modifier(ThemedPanel())
+            }
             library.id("recording-library")
         }
         .sheet(item: $playing) { RecordingPlayback(request: $0) }
@@ -199,17 +202,18 @@ private struct RecordingPlayback: View {
     }
 }
 
-private final class PreviewSurface: UIView {
+final class PreviewSurface: UIView {
     override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
     var preview: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
 }
-private struct CameraPreview: UIViewRepresentable {
+struct CameraPreview: UIViewRepresentable {
     let session: AVCaptureSession
+    var orientation: AVCaptureVideoOrientation = .portrait
     func makeUIView(context: Context) -> PreviewSurface {
         let view = PreviewSurface(); view.preview.session = session; view.preview.videoGravity = .resizeAspect
         return view
     }
     func updateUIView(_ view: PreviewSurface, context: Context) {
-        if let connection = view.preview.connection, connection.isVideoOrientationSupported { connection.videoOrientation = .portrait }
+        if let connection = view.preview.connection, connection.isVideoOrientationSupported { connection.videoOrientation = orientation }
     }
 }

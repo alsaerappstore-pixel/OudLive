@@ -1,6 +1,7 @@
 import AVFoundation
 import CoreGraphics
 import CoreText
+import CoreImage
 
 // All capture and writer state belongs to this serial queue, never the audio callback.
 final class VideoRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
@@ -12,8 +13,9 @@ final class VideoRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
     private var firstHost = 0.0
     private var failure: Error?
     private var accepting = false
+    private var latestFrame: CVPixelBuffer?
 
-    func prepare(url: URL, front: Bool, completion: @escaping (Error?) -> Void) {
+    func prepare(url: URL, front: Bool, orientation: AVCaptureVideoOrientation = .portrait, completion: @escaping (Error?) -> Void) {
         queue.async {
             var configuring = false
             do {
@@ -71,7 +73,7 @@ final class VideoRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
                 guard self.session.canAddOutput(output) else { throw Self.error("تعذّر تشغيل تصوير الفيديو.") }
                 self.session.addOutput(output)
                 if let connection = output.connection(with: .video), connection.isVideoOrientationSupported {
-                    connection.videoOrientation = .portrait
+                    connection.videoOrientation = orientation
                     #if os(iOS)
                     if connection.isVideoStabilizationSupported { connection.preferredVideoStabilizationMode = .off }
                     #endif
@@ -84,7 +86,7 @@ final class VideoRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
                 let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
                 let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
                     AVVideoCodecKey: AVVideoCodecType.h264,
-                    AVVideoWidthKey: 720, AVVideoHeightKey: 1280, AVVideoScalingModeKey: AVVideoScalingModeResizeAspect
+                    AVVideoWidthKey: (orientation == .portrait || orientation == .portraitUpsideDown) ? 720 : 1280, AVVideoHeightKey: (orientation == .portrait || orientation == .portraitUpsideDown) ? 1280 : 720, AVVideoScalingModeKey: AVVideoScalingModeResizeAspect
                 ])
                 input.expectsMediaDataInRealTime = true
                 guard writer.canAdd(input) else { throw Self.error("تعذّر تجهيز ملف الفيديو.") }
@@ -103,6 +105,7 @@ final class VideoRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
     }
     func begin() { queue.async { self.accepting = true } }
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        latestFrame = CMSampleBufferGetImageBuffer(sampleBuffer)
         guard accepting, failure == nil, let writer, let input else { return }
         let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
         if firstPTS == nil {
@@ -137,6 +140,22 @@ final class VideoRecorder: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
                     ? .success(self.firstHost) : .failure(writer.error ?? Self.error("تعذّر حفظ الفيديو."))
                 DispatchQueue.main.async { completion(result) }
             }
+        }
+    }
+    static func jpeg(_ buffer: CVPixelBuffer) throws -> Data {
+        let image = CIImage(cvPixelBuffer: buffer)
+        guard let data = CIContext().jpegRepresentation(of: image, colorSpace: CGColorSpaceCreateDeviceRGB(), options: [:]) else {
+            throw error("تعذّر تجهيز الصورة.")
+        }
+        return data
+    }
+    func snapshot(completion: @escaping (Result<Data, Error>) -> Void) {
+        queue.async {
+            let result = Result<Data, Error> {
+                guard let frame = self.latestFrame else { throw Self.error("انتظر ظهور صورة الكاميرا أولًا.") }
+                return try Self.jpeg(frame)
+            }
+            DispatchQueue.main.async { completion(result) }
         }
     }
     static func error(_ text: String) -> NSError {

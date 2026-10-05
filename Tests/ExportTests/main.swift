@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import ImageIO
 
 @main struct ExportTest {
     static func main() async throws {
@@ -26,6 +27,11 @@ import Foundation
         CVPixelBufferLockBaseAddress(pixel!, [])
         memset(CVPixelBufferGetBaseAddress(pixel!), 64, CVPixelBufferGetDataSize(pixel!))
         CVPixelBufferUnlockBaseAddress(pixel!, [])
+        let jpeg = try VideoRecorder.jpeg(pixel!)
+        let source = CGImageSourceCreateWithData(jpeg as CFData, nil)!
+        let photo = CGImageSourceCreateImageAtIndex(source, 0, nil)!
+        precondition(photo.width == 720 && photo.height == 1280)
+        print("PASS: camera snapshot encodes a decodable full-size JPEG")
         for frame in 0..<60 {
             while !input.isReadyForMoreMediaData {
                 precondition(writer.status == .writing)
