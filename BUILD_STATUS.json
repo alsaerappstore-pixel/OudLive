@@ -1,15 +1,12 @@
 {
-  "version": "3.4.0",
-  "build_number": 13,
-  "commit": "8af3937e7e1b3b4a58cd02a8c3ff11b445597d0d",
-  "workflow_run": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/37222653319",
-  "artifact_url": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/37222653319/artifacts/11310448569",
+  "version": "3.5.0",
+  "build_number": 14,
+  "commit": "818af85a392db0d530559786ad3602fe9e7b51c8",
+  "workflow_run": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/37325294798",
+  "artifact_url": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/37325294798/artifacts/11351269398",
   "result": "success",
-  "sound_memory_slots": 8,
-  "recording_presets": 15,
-  "eras": 3,
-  "layouts": 3,
   "signed": false,
   "physical_camera_tested": false,
-  "photos_export_device_tested": false
+  "photos_export_device_tested": false,
+  "ui_interaction_automation": false
 }
