@@ -149,8 +149,17 @@ final class AudioModel: ObservableObject {
     @Published private(set) var hardwareMS = 0.0
     @Published private(set) var sampleRate = 0.0
     @Published private(set) var inputs: [AVAudioSessionPortDescription] = []
+    @Published var usesBluetoothMic = UserDefaults.standard.bool(forKey: "OudLive.bluetoothMic") {
+        didSet {
+            guard oldValue != usesBluetoothMic else { return }
+            selectedInput = ""
+            if running || starting { stop() }
+            UserDefaults.standard.set(usesBluetoothMic, forKey: "OudLive.bluetoothMic")
+            message = "اخترت مصدر الميكروفون. اضغط استماع مباشر لتفعيله دون تسجيل."
+        }
+    }
     @Published var selectedInput = "" {
-        didSet { if oldValue != selectedInput && running { stop(); message = "تغيّر الميكروفون. اضغط ابدأ لتطبيقه." } }
+        didSet { if oldValue != selectedInput && (running || starting) { stop(); message = "تغيّر الميكروفون. اضغط استماع مباشر لتطبيقه." } }
     }
     @Published var stableBuffer = false { didSet { save(); if running { stop(); message = "اضغط ابدأ لتطبيق زمن المخزن الجديد." } } }
     private var saved = SavedSettings()
@@ -222,7 +231,7 @@ final class AudioModel: ObservableObject {
     }
     private var safeOutput: Bool {
         !session.currentRoute.outputs.isEmpty && session.currentRoute.outputs.allSatisfy {
-            [AVAudioSession.Port.headphones, .usbAudio, .lineOut, .bluetoothA2DP].contains($0.portType)
+            [AVAudioSession.Port.headphones, .usbAudio, .lineOut, .bluetoothA2DP, .bluetoothHFP].contains($0.portType)
         }
     }
     private var routeKey: String {
@@ -322,25 +331,49 @@ final class AudioModel: ObservableObject {
                 guard let self, self.generation == request else { return }
                 self.starting = false
                 guard granted else { self.message = "اسمح بالميكروفون من إعدادات iPhone ← عود لايف ← الميكروفون."; return }
-                self.start()
+                await self.start()
             }
         }
     }
-    private func start() {
+    private func start() async {
+        let token = generation
+        starting = true
+        defer { if token == generation { starting = false } }
         do {
-            // A2DP preserves music-quality output while recording the phone/USB mic.
-            // Do not enable HFP: that would switch headphones to call-quality audio.
-            try session.setCategory(.playAndRecord, mode: .measurement, options: [.allowBluetoothA2DP])
+            // Enable HFP only on explicit selection. A2DP is output-only.
+            let options: AVAudioSession.CategoryOptions = usesBluetoothMic ? [.allowBluetooth] : [.allowBluetoothA2DP]
+            try session.setCategory(.playAndRecord, mode: usesBluetoothMic ? .default : .measurement, options: options)
             try session.setPreferredSampleRate(48000)
             try session.setPreferredIOBufferDuration((stableBuffer ? 256.0 : 128.0) / 48000.0)
             try session.setActive(true)
-            if !selectedInput.isEmpty, let port = session.availableInputs?.first(where: { $0.uid == selectedInput }) {
+            if usesBluetoothMic {
+                for _ in 0..<20 {
+                    if session.availableInputs?.contains(where: { $0.portType == .bluetoothHFP }) == true { break }
+                    try await Task.sleep(nanoseconds: 50_000_000)
+                    guard token == generation else { return }
+                }
+                let headsets = (session.availableInputs ?? []).filter { $0.portType == .bluetoothHFP }
+                guard let headset = headsets.first(where: { $0.uid == selectedInput }) ?? headsets.first else {
+                    throw VideoRecorder.error("لم يظهر مايك سماعة بلوتوث. وصّل UGREEN من إعدادات الآيفون أولًا ثم اضغط استماع مباشر. يجب أن تدعم السماعة الميكروفون في وضع المكالمات.")
+                }
+                try session.setPreferredInput(headset)
+                // Allow the system to negotiate the headset's actual hardware rate.
+                for _ in 0..<20 {
+                    if session.currentRoute.inputs.contains(where: { $0.uid == headset.uid }) && session.currentRoute.outputs.contains(where: { $0.portType == .bluetoothHFP }) { break }
+                    try await Task.sleep(nanoseconds: 50_000_000)
+                    guard token == generation else { return }
+                }
+                guard session.currentRoute.inputs.contains(where: { $0.uid == headset.uid }), session.currentRoute.outputs.contains(where: { $0.portType == .bluetoothHFP }) else {
+                    throw VideoRecorder.error("لم يكتمل توصيل مايك السماعة. أعد توصيلها ثم حاول مجددًا.")
+                }
+            } else if !selectedInput.isEmpty, let port = session.availableInputs?.first(where: { $0.uid == selectedInput && $0.portType != .bluetoothHFP }) {
                 try session.setPreferredInput(port)
             } else {
                 let phoneMic = session.availableInputs?.first { $0.portType == .builtInMic }
                 let usbMic = session.availableInputs?.first { $0.portType == .usbAudio }
                 try session.setPreferredInput(usbMic ?? phoneMic)
             }
+            guard token == generation else { return }
             refreshRoute()
             monitoring = safeOutput
             bridge.setMonitoringEnabled(monitoring)
@@ -350,7 +383,7 @@ final class AudioModel: ObservableObject {
             activeRouteKey = routeKey
             running = true; UIApplication.shared.isIdleTimerDisabled = true
             message = !monitoring ? "جاهز للتسجيل دون سماعة • مكبر الآيفون صامت، والمؤثرات محفوظة في التسجيل." : bluetoothOutput
-                ? "الصوت إلى سماعة البلوتوث • الالتقاط من \(inputRoute). يوجد تأخير من البلوتوث؛ السلك أسرع للعزف."
+                ? "استماع مباشر دون تسجيل • سماعة البلوتوث • الالتقاط من \(inputRoute). يوجد تأخير من البلوتوث؛ السلك أسرع للعزف."
                 : "الصوت مباشر • ابدأ بمستوى منخفض وارفعه تدريجيًا."
         } catch {
             stop(); message = error.localizedDescription
@@ -367,7 +400,7 @@ final class AudioModel: ObservableObject {
         inputs = session.availableInputs ?? []
         route = session.currentRoute.outputs.map(\.portName).joined(separator: "، ")
         inputRoute = session.currentRoute.inputs.map(\.portName).joined(separator: "، ")
-        bluetoothOutput = session.currentRoute.outputs.contains { $0.portType == .bluetoothA2DP }
+        bluetoothOutput = session.currentRoute.outputs.contains { $0.portType == .bluetoothA2DP || $0.portType == .bluetoothHFP }
         sampleRate = session.sampleRate; bufferMS = session.ioBufferDuration * 1000
         hardwareMS = (session.inputLatency + session.outputLatency) * 1000
     }
@@ -406,7 +439,7 @@ extension AudioModel {
                 }
                 guard recordingGeneration == token, recordingPreparing else { return }
                 guard allowed else { recordingPreparing = false; message = "اسمح بالميكروفون من إعدادات الآيفون."; return }
-                start()
+                await start()
                 guard running else { recordingPreparing = false; return }
             }
             if video {

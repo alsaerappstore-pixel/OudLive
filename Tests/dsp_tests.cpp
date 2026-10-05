@@ -73,7 +73,7 @@ int main() {
         assert(difference>1);
         std::cout<<"PASS: "<<(variant==0?"chorus":variant==1?"flanger":"doubler")<<" produces independent stereo voices\n";
     }
-    for(float rate:{44100.f,48000.f,96000.f}) {
+    for(float rate:{8000.f,16000.f,24000.f,32000.f,44100.f,48000.f,96000.f}) {
         oud::DSP d; for(int p=0;p<oud::Count;++p)d.set(p,oud::maximum[p]);
         d.set(oud::Mute,0); d.set(oud::Bypass,0); d.prepare(rate);
         std::mt19937 random(42); std::uniform_real_distribution<float> dist(-2,2);
@@ -163,6 +163,27 @@ int main() {
         for(float v:bl) assert(std::isfinite(v) && std::abs(v)<=.941f);
         std::cout<<"PASS: separate recording gain amplifies correctly and limits excessive peaks\n";
     }
+    for(float rate:{8000.f,16000.f,24000.f,32000.f}) {
+        // The high EQ center used to exceed Nyquist at 8 kHz and became unstable.
+        oud::Biquad eq; eq.peak(4800,12,rate);
+        double tail=0;
+        for(int i=0;i<int(rate);++i) {
+            float v=eq.tick(i==0 ? .1f : 0.f);
+            assert(std::isfinite(v) && std::abs(v)<1.f);
+            if(i>int(rate)/2) tail+=double(v)*v;
+        }
+        assert(tail<1e-8);
+        oud::DSP dry,wet; flat(dry); flat(wet); wet.set(oud::Reverb,.8f); wet.set(oud::Delay,.7f);
+        dry.prepare(rate); wet.prepare(rate);
+        double energy=0,difference=0;
+        std::array<float,128>x,l,r,a,b;
+        for(int block=0;block<200;++block) {
+            for(size_t i=0;i<x.size();++i) x[i]=.1f*std::sin(2*oud::pi*440*(block*128+i)/rate);
+            dry.process(x.data(),a.data(),b.data(),x.size()); wet.process(x.data(),l.data(),r.data(),x.size());
+            for(size_t i=0;i<x.size();++i) { energy+=l[i]*l[i]; difference+=std::abs(l[i]-a[i]); }
+        }
+        assert(energy>1 && difference>1);
+        std::cout<<"PASS: HFP-rate EQ is stable and live effects remain audible at "<<rate<<" Hz without recording\n";
+    }
     std::cout<<"All DSP checks passed. Device latency and iOS integration still require hardware testing.\n";
 }
-

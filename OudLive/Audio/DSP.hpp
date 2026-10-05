@@ -21,6 +21,7 @@ static_assert(std::atomic<float>::is_always_lock_free, "Audio needs lock-free fl
 struct Biquad {
     float b0=1,b1=0,b2=0,a1=0,a2=0,z1=0,z2=0;
     void peak(float hz, float gain, float rate) {
+        hz=clamp(hz, 10.f, rate*.45f); // HFP may negotiate 8/16/24 kHz. Keep EQ below Nyquist.
         float A=std::pow(10.f,gain/40), w=2*pi*hz/rate, alpha=std::sin(w)/1.4f;
         float a0=1+alpha/A;
         b0=(1+alpha*A)/a0; b1=-2*std::cos(w)/a0; b2=(1-alpha*A)/a0;
@@ -206,4 +207,3 @@ public:
     }
 };
 }
-

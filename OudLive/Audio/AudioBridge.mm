@@ -11,7 +11,8 @@ struct AudioState {
     AudioUnit unit=nullptr;
     oud::DSP dsp;
     std::vector<float> input;
-    std::vector<float> recordLeft,recordRight;
+    std::vector<float> recordLeft,recordRight,monitorLeft,monitorRight;
+    UInt32 outputChannels=2;
     std::atomic<bool> monitoring{false};
     std::atomic<int> error{0};
     WetFileWriter recorder;
@@ -27,10 +28,10 @@ static OSStatus render(void *context, AudioUnitRenderActionFlags *flags,
             if(out->mBuffers[b].mData) std::memset(out->mBuffers[b].mData,0,out->mBuffers[b].mDataByteSize);
         *flags|=kAudioUnitRenderAction_OutputIsSilence;
     };
-    if(frames>state->input.size() || out->mNumberBuffers!=2 ||
-       !out->mBuffers[0].mData || !out->mBuffers[1].mData ||
+    if(frames>state->input.size() || out->mNumberBuffers!=state->outputChannels ||
+       !out->mBuffers[0].mData || (state->outputChannels==2 && !out->mBuffers[1].mData) ||
        out->mBuffers[0].mDataByteSize<frames*sizeof(float) ||
-       out->mBuffers[1].mDataByteSize<frames*sizeof(float)) {
+       (state->outputChannels==2 && out->mBuffers[1].mDataByteSize<frames*sizeof(float))) {
         state->error.store(kAudioUnitErr_TooManyFramesToProcess); silence(); return noErr;
     }
     AudioBufferList input={}; input.mNumberBuffers=1;
@@ -39,10 +40,14 @@ static OSStatus render(void *context, AudioUnitRenderActionFlags *flags,
     if(status!=noErr) { state->error.store(status); silence(); return noErr; }
     // A silent input may still produce delay/reverb tails.
     *flags &= ~kAudioUnitRenderAction_OutputIsSilence;
-    state->dsp.process(static_cast<float *>(input.mBuffers[0].mData),
-                       static_cast<float *>(out->mBuffers[0].mData),
-                       static_cast<float *>(out->mBuffers[1].mData),frames,
+    float *left=state->outputChannels==1 ? state->monitorLeft.data() : static_cast<float *>(out->mBuffers[0].mData);
+    float *right=state->outputChannels==1 ? state->monitorRight.data() : static_cast<float *>(out->mBuffers[1].mData);
+    state->dsp.process(static_cast<float *>(input.mBuffers[0].mData),left,right,frames,
                        state->recordLeft.data(),state->recordRight.data());
+    if(state->outputChannels==1) {
+        auto *mono=static_cast<float *>(out->mBuffers[0].mData);
+        for(UInt32 i=0;i<frames;++i) mono[i]=.5f*(left[i]+right[i]);
+    }
     // Write only the final stereo DSP output. Prewarmed asynchronous file I/O
     // keeps filesystem work off this callback. The reader fence protects close.
     struct StereoBuffers { UInt32 count; AudioBuffer buffers[2]; } wet={2,{
@@ -89,7 +94,8 @@ static OSStatus render(void *context, AudioUnitRenderActionFlags *flags,
         format.mBytesPerPacket=4; format.mFramesPerPacket=1; format.mBytesPerFrame=4;
         format.mChannelsPerFrame=1; format.mBitsPerChannel=32;
         check(AudioUnitSetProperty(_state->unit,kAudioUnitProperty_StreamFormat,kAudioUnitScope_Output,1,&format,sizeof(format)));
-        format.mChannelsPerFrame=2;
+        _state->outputChannels=[AVAudioSession sharedInstance].outputNumberOfChannels>1 ? 2 : 1;
+        format.mChannelsPerFrame=_state->outputChannels;
         check(AudioUnitSetProperty(_state->unit,kAudioUnitProperty_StreamFormat,kAudioUnitScope_Input,0,&format,sizeof(format)));
         check(AudioUnitSetProperty(_state->unit,kAudioUnitProperty_MaximumFramesPerSlice,kAudioUnitScope_Global,0,&maximum,sizeof(maximum)));
         check(AudioUnitSetProperty(_state->unit,kAudioUnitProperty_ShouldAllocateBuffer,kAudioUnitScope_Output,1,&noAllocation,sizeof(noAllocation)));
@@ -100,6 +106,7 @@ static OSStatus render(void *context, AudioUnitRenderActionFlags *flags,
         if(result==noErr) check(AudioUnitGetProperty(_state->unit,kAudioUnitProperty_MaximumFramesPerSlice,kAudioUnitScope_Global,0,&maximum,&size));
         if(result==noErr) {
             _state->input.assign(maximum,0); _state->dsp.prepare(float(sampleRate)); _state->error.store(0);
+            _state->monitorLeft.assign(maximum,0); _state->monitorRight.assign(maximum,0);
             _state->recordLeft.assign(maximum,0); _state->recordRight.assign(maximum,0);
             check(AudioOutputUnitStart(_state->unit));
         }

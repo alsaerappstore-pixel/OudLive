@@ -25,6 +25,7 @@ struct ConsoleView: View {
                 VStack(spacing: wide ? 12 : 16) {
                     header(wide: wide)
                     if !wide { recordBar }
+                    listeningPanel(wide: wide)
                     if wide {
                         HStack(alignment: .top, spacing: 12) {
                             inputPanel(compact: false).frame(width: 108)
@@ -84,6 +85,47 @@ struct ConsoleView: View {
             if arguments.contains("--console-library") { sheet = .library }
             #endif
         }
+    }
+    private var microphoneChoice: some View {
+        Picker("مصدر الميكروفون", selection: $audio.usesBluetoothMic) {
+            Text("مايك الآيفون / USB").tag(false)
+            Text("مايك سماعة البلوتوث").tag(true)
+        }.pickerStyle(.segmented).disabled(busy || audio.starting)
+    }
+    private var listeningButton: some View {
+        Button {
+            if !audio.running && !audio.starting { audio.set(.mute, 0) }
+            audio.toggle()
+        } label: {
+            Label(audio.starting ? "إلغاء التوصيل" : (audio.running ? "إيقاف الاستماع" : "استماع مباشر"), systemImage: audio.running ? "stop.fill" : "play.fill")
+                .font(.subheadline.bold()).frame(maxWidth: .infinity, minHeight: 44)
+        }.buttonStyle(.borderedProminent).disabled(busy)
+    }
+    private func listeningPanel(wide: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if wide {
+                HStack(spacing: 12) {
+                    Label("دون تسجيل", systemImage: "ear.badge.waveform").font(.caption.bold())
+                    microphoneChoice.frame(maxWidth: 330)
+                    listeningButton
+                    AudioOutputPicker().frame(width: 44, height: 44)
+                }
+            } else {
+            HStack {
+                Label("استماع مباشر • دون تسجيل", systemImage: "ear.badge.waveform").font(.subheadline.bold())
+                Spacer()
+                AudioOutputPicker().frame(width: 44, height: 44)
+            }
+            microphoneChoice
+            listeningButton
+            }
+            if audio.running {
+                Text("المايك: \(audio.inputRoute) • الخروج: \(audio.route)").font(.caption2).foregroundStyle(Color(white: 0.8))
+            }
+            if !wide { Text(audio.usesBluetoothMic ? "وصّل UGREEN من إعدادات البلوتوث أولًا. مايك السماعة يعمل بوضع المكالمات وقد يقل وضوح الموسيقى؛ يوجد تأخير لاسلكي." : "يمكنك سماع المؤثرات في السماعة قبل التسجيل. اختر السماعة من زر المخرج؛ مايك الآيفون أو USB يحافظ على تفاصيل العود.")
+                .font(.caption2).foregroundStyle(Color(white: 0.7))
+            }
+        }.modifier(ConsolePanel(padding: 12))
     }
     private func header(wide: Bool) -> some View {
         HStack(spacing: 12) {
@@ -176,8 +218,8 @@ struct ConsoleView: View {
     private var microphoneMenu: some View {
         Menu {
             Picker("الميكروفون", selection: $audio.selectedInput) {
-                Text("تلقائي • مايك الآيفون أو USB").tag("")
-                ForEach(audio.inputs, id: \.uid) { Text($0.portName).tag($0.uid) }
+                Text(audio.usesBluetoothMic ? "تلقائي • مايك سماعة البلوتوث" : "تلقائي • مايك الآيفون أو USB").tag("")
+                ForEach(audio.inputs.filter { audio.usesBluetoothMic ? $0.portType == .bluetoothHFP : $0.portType != .bluetoothHFP }, id: \.uid) { Text($0.portName).tag($0.uid) }
             }
         } label: { Label("المدخل", systemImage: "mic").font(.caption.bold()).frame(minHeight: 32) }
     }
@@ -325,7 +367,7 @@ struct ConsoleView: View {
             Text("تغيير الميكروفون أو الاستقرار يوقف المعالجة. حدّد التوصيل قبل التسجيل.").font(.caption).foregroundStyle(Color(white: 0.72))
             microphoneMenu
             Text(audio.route).font(.caption)
-            Text("البلوتوث يعمل مع ميكروفون الآيفون وله تأخير. الفيديو يحافظ على اتجاه الكاميرا عند فتحها؛ أوقف التسجيل قبل التبديل. التسجيل والحفظ في الصور لا يحتاجان سماعة.").font(.caption).foregroundStyle(Color(white: 0.72))
+            Text("اختر مايك الآيفون أو مايك سماعة البلوتوث من لوحة الاستماع. البلوتوث له تأخير. الفيديو يحافظ على اتجاه الكاميرا عند فتحها؛ أوقف التسجيل قبل التبديل. التسجيل والحفظ في الصور لا يحتاجان سماعة.").font(.caption).foregroundStyle(Color(white: 0.72))
             Button("فتح الواجهات والثيمات السابقة") { sheet = nil; audio.closeCameraPreview(); console = false }.buttonStyle(.bordered)
             if !audio.namedSounds.isEmpty {
                 Text("أصواتي السابقة").font(.headline)

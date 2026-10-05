@@ -201,7 +201,8 @@ struct ContentView: View {
                 }
                 Spacer(); AudioOutputPicker().frame(width: 52, height: 52)
             }
-            Text("البلوتوث يعمل مع ميكروفون الآيفون. اختر سماعتك من مركز التحكم قبل البدء. تأخير البلوتوث لا تزيله إعدادات المؤثرات.").font(.footnote).foregroundStyle(gold)
+            Toggle("استخدام مايك سماعة البلوتوث", isOn: $audio.usesBluetoothMic).disabled(audio.recording || audio.recordingPreparing || audio.recordingFinishing || audio.starting)
+            Text("وصّل السماعة من إعدادات الآيفون ثم ابدأ المعالجة للاستماع دون تسجيل. مايك السماعة يعمل بوضع المكالمات وقد يقل وضوح الموسيقى. تأخير البلوتوث لا تزيله المؤثرات.").font(.footnote).foregroundStyle(gold)
             Picker("الميكروفون", selection: $audio.selectedInput) {
                 Text("تلقائي").tag("")
                 ForEach(audio.inputs, id: \.uid) { Text($0.portName).tag($0.uid) }
