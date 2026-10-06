@@ -1,5 +1,11 @@
 # Native iOS design comparison — OudLive 3.5
 
+## 3.6 quick-grid follow-up (current release)
+
+Run https://github.com/alsaerappstore-pixel/OudLive/actions/runs/37402130061, commit `df4da7316257643223df70560aee5141c4802fb2`, completed successfully. Actual portrait, full scrolled preset-grid, landscape, and raw effect-rack captures were inspected. The grid has exactly five columns and seven complete rows in RTL order; all 35 names are visible in the scrolled portrait capture without horizontal scrolling. The first item at top right is the unprocessed option with a persistent red outline, red selected tint and lit selection lamp. Other buttons have distinct readable names. Landscape keeps five columns and uses vertical scrolling. The subsequent rack capture shows all effects off and bypass active after the raw selection and relaunch.
+
+The grid is placed below standalone listening controls, above the oud/camera area, replacing the horizontal quick-preset strip. The same reusable grid appears in the legacy recording section. Visual review covers rendering, not physical tapping of all buttons. DSP tests separately verify 595 pairwise normalized comparisons (minimum distance 0.313728), raw-input equality, and removal of filter coloration and tails from both monitoring and recording. No human listening or physical headset test is claimed. The historical 3.5 comparison below documents the retained base design.
+
 ## Reference and scope
 
 User-selected screenshot: `codex-clipboard-ddd40756-037b-44bf-9a9e-38a97881c684.png` (2227 × 1468). Native SwiftUI implementation, not a website. The reference and an actual simulator capture were inspected together. The comparison is a responsive adaptation, not a claim of pixel identity across a desktop and an iPhone viewport.
