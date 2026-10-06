@@ -36,7 +36,7 @@ jobs:
         run: |
           swiftc -parse-as-library OudLive/VideoRecorder.swift OudLive/RecordingTiming.swift Tests/ExportTests/main.swift -o build/export-tests
           build/export-tests | tee build/export-test-results.txt
-      - name: Render and compare the 15 recording presets
+      - name: Render and compare the 35 quick presets including raw
         run: |
           clang++ -std=c++17 -O1 -g -fsanitize=address,undefined Tests/recording_presets.cpp -o build/preset-tests
           build/preset-tests | tee build/preset-test-results.txt
@@ -64,7 +64,7 @@ jobs:
             build/Build-*.xcresult
           if-no-files-found: ignore
           retention-days: 14
-      - name: Launch app and capture three simulator screens
+      - name: Launch app and capture simulator screens
         run: bash scripts/simulator-smoke.sh
       - name: Upload simulator screenshots
         if: always()
@@ -76,4 +76,3 @@ jobs:
             build/simulator.log
           if-no-files-found: ignore
           retention-days: 14
-

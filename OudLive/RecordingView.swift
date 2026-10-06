@@ -63,27 +63,7 @@ struct RecordingView: View {
         } message: { Text("سيُحذف الصوت والفيديو المرتبطان بكل تسجيل محدد من التطبيق. النسخ المحفوظة في ألبوم الصور تبقى كما هي.") }
         .onChange(of: audio.recordings) { _ in selected.formIntersection(Set(entries.map(\.id))) }
     }
-    private var recordingPresets: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("١٥ طابعًا • اضغط واسمع الفرق").font(.headline)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 8)], spacing: 8) {
-                ForEach(RecordingPreset.all) { preset in
-                    let active = audio.mode == .oud && audio.settings.preset == preset.name
-                    Button { audio.chooseRecordingPreset(preset) } label: {
-                        VStack(spacing: 5) {
-                            StatusLamp(on: active && audio.value(.bypass) < 0.5)
-                            Text(preset.name).font(.caption.bold()).lineLimit(2)
-                        }.frame(maxWidth: .infinity, minHeight: 55).padding(5).background { EraSurface() }
-                    }.buttonStyle(.plain).accessibilityAddTraits(active ? .isSelected : []).accessibilityHint(preset.description)
-                }
-            }
-            VStack(alignment: .leading, spacing: 5) {
-                Text("الحالي: \(audio.settings.preset)").font(.subheadline.bold())
-                Text(SoundSettings.detail(audio.settings.preset)).font(.caption)
-            }.frame(maxWidth: .infinity, alignment: .leading).padding(10).background(era.accent(theme, palette).opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
-            Text("اللمبة تحدد الطابع المختار. تحافظ الأزرار على مستوياتك؛ اترك الصدى يهدأ بين الطوابع. التغيير يؤثر في التسجيل الجاري فقط.").font(.caption2).foregroundStyle(.secondary)
-        }
-    }
+    private var recordingPresets: some View { QuickPresetGrid(audio: audio) }
     private var library: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {

@@ -26,6 +26,7 @@ struct ConsoleView: View {
                     header(wide: wide)
                     if !wide { recordBar }
                     listeningPanel(wide: wide)
+                    QuickPresetGrid(audio: audio).modifier(ConsolePanel(padding: 10)).id("console-presets")
                     if wide {
                         HStack(alignment: .top, spacing: 12) {
                             inputPanel(compact: false).frame(width: 108)
@@ -56,6 +57,10 @@ struct ConsoleView: View {
             }
             .task {
                 #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("--console-presets") {
+                    try? await Task.sleep(nanoseconds: 700_000_000)
+                    scroll.scrollTo("console-presets", anchor: .top)
+                }
                 if ProcessInfo.processInfo.arguments.contains("--console-rack") {
                     try? await Task.sleep(nanoseconds: 700_000_000)
                     scroll.scrollTo("console-rack", anchor: .top)
@@ -74,6 +79,7 @@ struct ConsoleView: View {
         .task {
             #if DEBUG
             let arguments = ProcessInfo.processInfo.arguments
+            if arguments.contains("--console-presets") { audio.chooseRecordingPreset(RecordingPreset.all[0]) }
             do {
                 try? await Task.sleep(nanoseconds: 300_000_000)
                 if let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first {
@@ -171,22 +177,7 @@ struct ConsoleView: View {
                 Image("OudHero").resizable().scaledToFill().frame(width: bounds.size.width, height: height).clipped()
             }
             VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("الضبط السريع").font(.caption.bold())
-                    Spacer()
-                    Text(audio.settings.preset).font(.caption).foregroundStyle(blue)
-                }
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 7) {
-                        ForEach(RecordingPreset.all) { preset in
-                            Button { audio.chooseRecordingPreset(preset) } label: {
-                                Text(preset.name).font(.caption.bold()).padding(.horizontal, 13).frame(minHeight: 40)
-                                    .background(audio.settings.preset == preset.name ? blue.opacity(0.32) : .black.opacity(0.65), in: RoundedRectangle(cornerRadius: 9))
-                                    .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(audio.settings.preset == preset.name ? blue : Color.white.opacity(0.22)))
-                            }.buttonStyle(.plain).accessibilityHint(preset.description)
-                        }
-                    }
-                }
+                Text(audio.settings.preset).font(.headline).padding(7).background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 6))
                 Spacer()
                 Text(SoundSettings.detail(audio.settings.preset)).font(.caption2).padding(7).background(.black.opacity(0.72), in: RoundedRectangle(cornerRadius: 6))
             }.padding(12).environment(\.layoutDirection, .rightToLeft)

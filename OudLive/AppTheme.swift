@@ -1,5 +1,51 @@
 import SwiftUI
 
+@MainActor
+struct QuickPresetGrid: View {
+    @ObservedObject var audio: AudioModel
+    @Environment(\.oudTheme) private var theme
+    @Environment(\.oudEra) private var era
+    @Environment(\.oudPalette) private var palette
+    private let columns = Array(repeating: GridItem(.flexible(minimum: 0), spacing: 6), count: 5)
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("الضبط السريع").font(.headline)
+                Spacer()
+                Text("٣٥ خيارًا • ٥ في كل صف").font(.caption2).foregroundStyle(.secondary)
+            }
+            LazyVGrid(columns: columns, spacing: 7) {
+                ForEach(RecordingPreset.all) { preset in
+                    let active = preset.isUnprocessed ? audio.settings.unprocessed :
+                        (audio.mode == .oud && audio.settings.preset == preset.name && audio.value(.bypass) < 0.5)
+                    let accent = preset.isUnprocessed ? Color.red : era.accent(theme, palette)
+                    Button { audio.chooseRecordingPreset(preset) } label: {
+                        VStack(spacing: 5) {
+                            StatusLamp(on: active)
+                            Text(preset.name).font(.caption2.bold()).multilineTextAlignment(.center)
+                                .lineLimit(3).fixedSize(horizontal: false, vertical: true).frame(minHeight: 31)
+                        }.padding(.horizontal, 3).padding(.vertical, 8).frame(maxWidth: .infinity, minHeight: 66)
+                            .background {
+                                ZStack {
+                                    EraSurface()
+                                    RoundedRectangle(cornerRadius: era.radius(theme)).fill(active ? accent.opacity(0.2) : .clear)
+                                }
+                            }
+                            .overlay(RoundedRectangle(cornerRadius: era.radius(theme)).strokeBorder(preset.isUnprocessed || active ? accent : accent.opacity(0.15), lineWidth: preset.isUnprocessed ? 2 : 1))
+                    }.buttonStyle(.plain).foregroundStyle(era.ink(theme))
+                        .accessibilityIdentifier("quick-preset-\(preset.id)")
+                        .accessibilityLabel(preset.name).accessibilityHint(preset.description)
+                        .accessibilityAddTraits(active ? .isSelected : [])
+                }
+            }
+            Text("الحالي: \(audio.settings.preset)").font(.subheadline.bold())
+            Text(SoundSettings.detail(audio.settings.preset)).font(.caption).fixedSize(horizontal: false, vertical: true)
+            Text("الاختيار يغيّر المؤثرات ويحافظ على مستوياتك. الزر الأحمر يتجاوز فلاتر التطبيق؛ تبقى حماية القمم.")
+                .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }.environment(\.layoutDirection, .rightToLeft)
+    }
+}
+
 enum AppTheme: String, CaseIterable, Identifiable {
     case studio, simple, stage
     var id: String { rawValue }

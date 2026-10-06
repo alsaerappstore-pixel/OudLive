@@ -237,7 +237,7 @@ final class AudioModel: ObservableObject {
     private var routeKey: String {
         (session.currentRoute.inputs + session.currentRoute.outputs).map(\.uid).joined(separator: "|") + "|\(session.sampleRate)"
     }
-    func value(_ parameter: Parameter) -> Double { settings[parameter] }
+    func value(_ parameter: Parameter) -> Double { parameter == .bypass ? settings.effective(parameter) : settings[parameter] }
     func boostInput() { set(.input, min(30, value(.input) + 6)) }
     func tapTempo() {
         let now = Date()
@@ -261,12 +261,17 @@ final class AudioModel: ObservableObject {
         settings = favorite; apply(); save()
     }
     func set(_ parameter: Parameter, _ value: Double) {
+        let leavingRaw = settings.unprocessed && ![Parameter.input, .output, .recordGain, .mute].contains(parameter)
+        if leavingRaw {
+            settings.unprocessed = false; settings[.bypass] = 0; settings.preset = "مخصص"
+            for effect in Effect.allCases where effect.parameters.contains(parameter) { settings.disabledEffects.remove(effect) }
+        }
         settings[parameter] = value
         if parameter != .mute && parameter != .bypass && parameter != .output && parameter != .input && parameter != .recordGain { settings.preset = "مخصص" }
-        bridge.setParameter(parameter.rawValue, value: Float(settings.effective(parameter))); save()
+        if leavingRaw { apply() } else { bridge.setParameter(parameter.rawValue, value: Float(settings.effective(parameter))) }; save()
     }
     func setEnabled(_ effect: Effect, _ enabled: Bool) {
-        if enabled { settings.disabledEffects.remove(effect) }
+        if enabled { settings.unprocessed = false; settings[.bypass] = 0; settings.disabledEffects.remove(effect) }
         else { settings.disabledEffects.insert(effect) }
         settings.preset = "مخصص"; apply(); save()
     }
@@ -297,7 +302,7 @@ final class AudioModel: ObservableObject {
         if let data = try? JSONEncoder().encode(namedSounds) { UserDefaults.standard.set(data, forKey: "OudLive.namedSounds.v1") }
     }
     func chooseRecordingPreset(_ preset: RecordingPreset) {
-        loadSound(NamedSound(name: preset.name, mode: .oud, settings: preset.settings(preserving: settings)))
+        loadSound(NamedSound(name: preset.name, mode: preset.isUnprocessed ? mode : .oud, settings: preset.settings(preserving: settings)))
     }
     func choosePreset(_ name: String) {
         let input = settings[.input], output = settings[.output], mute = settings[.mute], recordGain = settings[.recordGain]

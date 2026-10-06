@@ -185,5 +185,21 @@ int main() {
         assert(energy>1 && difference>1);
         std::cout<<"PASS: HFP-rate EQ is stable and live effects remain audible at "<<rate<<" Hz without recording\n";
     }
+    for(float rate:{8000.f,16000.f,48000.f}) {
+        oud::DSP d; flat(d); d.set(oud::Low,8); d.set(oud::High,-8);
+        d.set(oud::Reverb,1); d.set(oud::Delay,1); d.set(oud::Feedback,.7f); d.set(oud::Modulation,.8f);
+        d.prepare(rate);
+        std::vector<float>x(int(rate),.04f),l(x.size()),r(x.size()),rl(x.size()),rr(x.size());
+        d.process(x.data(),l.data(),r.data(),x.size(),rl.data(),rr.data());
+        d.set(oud::Bypass,1);
+        std::fill(x.begin(),x.end(),0); d.process(x.data(),l.data(),r.data(),x.size(),rl.data(),rr.data());
+        for(size_t i=0;i<x.size();++i) x[i]=.02f+.03f*std::sin(2*oud::pi*25*i/rate)+.05f*std::sin(2*oud::pi*440*i/rate);
+        d.process(x.data(),l.data(),r.data(),x.size(),rl.data(),rr.data());
+        for(size_t i=0;i<x.size();++i) {
+            assert(std::abs(l[i]-x[i])<1e-6f && std::abs(r[i]-x[i])<1e-6f);
+            assert(std::abs(rl[i]-x[i])<1e-6f && std::abs(rr[i]-x[i])<1e-6f);
+        }
+        std::cout<<"PASS: switching wet to raw removes filter coloration and effect tails from monitor and recording at "<<rate<<" Hz\n";
+    }
     std::cout<<"All DSP checks passed. Device latency and iOS integration still require hardware testing.\n";
 }

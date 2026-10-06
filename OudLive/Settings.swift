@@ -104,9 +104,11 @@ enum Effect: String, Codable, CaseIterable {
 }
 
 struct SoundSettings: Codable {
+    var unprocessed = false
     var disabledEffects: Set<Effect> = []
-    func enabled(_ effect: Effect) -> Bool { !disabledEffects.contains(effect) }
+    func enabled(_ effect: Effect) -> Bool { !unprocessed && !disabledEffects.contains(effect) }
     func effective(_ p: Parameter) -> Double {
+        if p == .bypass && unprocessed { return 1 }
         for effect in disabledEffects where effect.parameters.contains(p) {
             switch p {
             case .reverb, .delay, .modulation, .doubler, .low, .mid, .high, .compression, .makeup: return 0
@@ -118,11 +120,12 @@ struct SoundSettings: Codable {
     var preset = "طبيعي"
     var values: [Double] = [6,-9,0,0,0,0.25,0.24,0.12,320,0.32,0,0.7,0,0,0,0,2.4,22,0.5,4,1,0]
     init() {}
-    private enum CodingKeys: String, CodingKey { case preset, values, disabledEffects }
+    private enum CodingKeys: String, CodingKey { case preset, values, disabledEffects, unprocessed }
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         preset = try container.decode(String.self, forKey: .preset)
         values = try container.decode([Double].self, forKey: .values)
+        unprocessed = try container.decodeIfPresent(Bool.self, forKey: .unprocessed) ?? false
         disabledEffects = try container.decodeIfPresent(Set<Effect>.self, forKey: .disabledEffects) ?? []
         // Preserve all v1 user settings; append only the new v2 controls.
         if values.count == 16 { values += [2.4,22,0.5,4,1] }
@@ -222,8 +225,9 @@ struct RecordingPreset: Identifiable {
     let name: String
     let description: String
     private let controls: [Double]
+    var isUnprocessed: Bool { id == 0 }
     func settings(preserving current: SoundSettings) -> SoundSettings {
-        var s = SoundSettings(); s.preset = name
+        var s = SoundSettings(); s.preset = name; s.unprocessed = isUnprocessed
         let parameters: [Parameter] = [.low, .mid, .high, .compression, .makeup, .reverb, .decay, .predelay, .tone, .delay, .delayTime, .feedback, .modulation, .modRate, .flanger, .doubler]
         for (p, value) in zip(parameters, controls) { s[p] = value }
         for p in [Parameter.input, .output, .recordGain, .mute] { s[p] = current[p] }
@@ -237,12 +241,13 @@ struct RecordingPreset: Identifiable {
         return s
     }
     static let all: [RecordingPreset] = [
+        RecordingPreset(id: 0, name: "بدون مؤثرات", description: "صوت المايك دون مؤثرات أو فلاتر التطبيق؛ تبقى مستويات الصوت وحماية القمم. معالجة السماعة نفسها يحددها الجهاز.", controls: [0, 0, 0, 0, 0, 0, 0.4, 0, 0.5, 0, 220, 0, 0, 0.7, 0, 0]),
         RecordingPreset(id: 1, name: "الأصالة", description: "دفء قديم واضح: نبرة داكنة ورجعة قصيرة وحركة بطيئة", controls: [3, -3, -7, 0.28, 1, 0.48, 2.1, 15, 0.12, 0.3, 125, 0.1, 0.18, 0.22, 0, 0]),
         RecordingPreset(id: 2, name: "ريشة حادّة", description: "ريشة حادة وجافة: حضور مرتفع وقرار أخف", controls: [-5, 6, 6, 0.1, 0, 0.04, 0.45, 8, 0.85, 0, 180, 0, 0, 0.7, 0, 0]),
-        RecordingPreset(id: 3, name: "نقاء", description: "صوت جاف محايد: دون صدى أو حركة أو ضغط", controls: [0, 0, 0, 0, 0, 0, 0.4, 0, 0.5, 0, 220, 0, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 3, name: "نقاء", description: "نقاء مركّز: حضور محسوب وضغط متوسط دون صدى أو حركة", controls: [-3, 3, 2, 0.45, 2, 0, 0.4, 0, 0.5, 0, 220, 0, 0, 0.7, 0, 0]),
         RecordingPreset(id: 4, name: "عمق القاعة", description: "قاعة عميقة جدًا بذيل داكن وفاصل واضح قبل الصدى", controls: [1, -2, -2, 0.1, 0, 0.88, 6.4, 75, 0.1, 0.16, 540, 0.28, 0, 0.7, 0, 0]),
         RecordingPreset(id: 5, name: "مجلس خشبي", description: "جسم خشبي بارز مع انعكاسات غرفة قصيرة", controls: [1, 5, -4, 0.15, 0.5, 0.62, 0.7, 4, 0.3, 0, 200, 0, 0, 0.7, 0, 0]),
-        RecordingPreset(id: 6, name: "وتر حريري", description: "ريشة مخملية: تخفيف قوي للحضور واللمعان", controls: [-1, -5, -8, 0.36, 2, 0.28, 2.5, 30, 0.08, 0, 240, 0, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 6, name: "وتر حريري", description: "ريشة مخملية خفيفة الجسم مع رنين ناعم وتخفيف واضح للحضور", controls: [-5, -8, -10, 0.45, 2, 0.45, 1.8, 30, 0.08, 0, 240, 0, 0, 0.7, 0, 0]),
         RecordingPreset(id: 7, name: "قرار عميق", description: "قرار ممتلئ بارز وجسم عميق مع صدى محدود", controls: [7, -4, -2, 0.18, 0.5, 0.08, 0.6, 18, 0.2, 0, 280, 0, 0, 0.7, 0, 0]),
         RecordingPreset(id: 8, name: "بريق زجاجي", description: "رنين لامع زجاجي طويل وقرار خفيف", controls: [-6, -2, 7, 0.05, 0, 0.6, 3.6, 55, 1, 0, 320, 0, 0, 0.7, 0, 0]),
         RecordingPreset(id: 9, name: "رجع خاطف", description: "رجعة خاطفة واضحة بعد الريشة بلا سلسلة تكرارات", controls: [0, 1, 0, 0.1, 0, 0.03, 0.4, 0, 0.5, 0.7, 85, 0, 0, 0.7, 0, 0]),
@@ -251,7 +256,26 @@ struct RecordingPreset: Identifiable {
         RecordingPreset(id: 12, name: "وتران", description: "عود مضاعف: طبقتان قصيرتان تمنحان عرضًا واضحًا", controls: [0, -1, 2, 0.1, 0.3, 0.05, 0.5, 8, 0.6, 0, 250, 0, 0, 0.7, 0, 0.68]),
         RecordingPreset(id: 13, name: "موج ناعم", description: "كورس واسع بتموّج بطيء وواضح", controls: [-1, 0, -1, 0.1, 0, 0.12, 1.5, 25, 0.4, 0, 360, 0, 0.68, 0.45, 0, 0]),
         RecordingPreset(id: 14, name: "طيف معدني", description: "فلانجر معدني متحرك بطابع تجريبي واضح", controls: [-2, 2, 1, 0.08, 0, 0.05, 0.5, 8, 0.6, 0, 260, 0, 0.78, 1.1, 1, 0]),
-        RecordingPreset(id: 15, name: "أفق سينمائي", description: "أفق طويل مشرق: صدى بعيد وطبقات بطيئة", controls: [-3, -1, 3, 0.1, 0, 0.82, 7, 95, 0.72, 0.36, 1050, 0.5, 0.3, 0.14, 0, 0.15])
+        RecordingPreset(id: 15, name: "أفق سينمائي", description: "أفق طويل مشرق: صدى بعيد وطبقات بطيئة", controls: [-3, -1, 3, 0.1, 0, 0.82, 7, 95, 0.72, 0.36, 1050, 0.5, 0.3, 0.14, 0, 0.15]),
+        RecordingPreset(id: 16, name: "راديو قديم", description: "نبرة وسطية ضيقة وخشنة نسبيًا؛ قرار ولمعان أقل مع ضغط متوسط", controls: [-10, 8, -10, 0.45, 3, 0.08, 0.5, 0, 0.2, 0, 200, 0, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 17, name: "صندوق جهير", description: "جسم جهير مضغوط ورجعة دافئة قصيرة؛ طابع ثقيل قريب", controls: [10, 3, -9, 0.5, 3, 0.3, 1.1, 8, 0.15, 0.28, 160, 0.08, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 18, name: "نقش الريشة", description: "وسط نافذ ورجعة قوية عند 55 مللي ثانية تنقش بداية الريشة", controls: [-10, 10, -5, 0.4, 1, 0.08, 0.4, 0, 0.4, 0.65, 55, 0.2, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 19, name: "مخمل مضغوط", description: "ضغط قوي وطبقة مخملية مضاعفة؛ وسط ولمعان ناعمان", controls: [2, -8, -5, 0.86, 7, 0.06, 0.5, 15, 0.1, 0, 200, 0, 0, 0.7, 0, 0.5]),
+        RecordingPreset(id: 20, name: "إيقاع جاف", description: "ضغط قوي ووسط منحوت وريشة لامعة للعزف الإيقاعي دون صدى", controls: [-8, -5, 8, 1, 6, 0, 0.4, 0, 0.5, 0, 200, 0, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 21, name: "حجرة حجرية", description: "انعكاسات كثيفة قصيرة ومشرقة مع رجعة شبه فورية", controls: [-2, 2, 5, 0.13, 0, 0.9, 1, 0, 0.9, 0.26, 48, 0.12, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 22, name: "بئر مظلم", description: "رنين جهير طويل وتكرار بعيد داكن؛ مناسب لجمل متباعدة", controls: [5, -6, -10, 0.18, 1, 0.92, 7, 0, 0.06, 0.5, 930, 0.62, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 23, name: "قبة مضيئة", description: "مساحة لامعة كثيفة مع فاصل طويل يحفظ بداية الريشة", controls: [-4, 4, 8, 0.22, 0, 0.92, 5, 100, 0.95, 0.12, 175, 0.05, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 24, name: "رواق بعيد", description: "وسط مجوّف ورد متأخر بعد الجملة مع مساحة دافئة", controls: [3, -8, -1, 0.16, 0, 0.7, 3.3, 90, 0.28, 0.65, 1180, 0.2, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 25, name: "ظل قريب", description: "نسخة ملاصقة للريشة تعطي لونًا مجوفًا قصيرًا", controls: [-4, 4, -5, 0.3, 1, 0.1, 0.4, 0, 0.25, 0.9, 42, 0.18, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 26, name: "ثلاثيات", description: "تكرار كل 333 مللي ثانية؛ إحساس ثلاثي عند نحو 120 نبضة", controls: [-2, 1, 3, 0.2, 0.5, 0.16, 1.1, 20, 0.6, 0.8, 333, 0.57, 0.1, 0.7, 0, 0]),
+        RecordingPreset(id: 27, name: "خطوة متباعدة", description: "رجعات ممتلئة طويلة العمر وبينها فراغ واضح", controls: [4, 0, -4, 0.32, 1, 0.06, 0.7, 10, 0.2, 0.82, 470, 0.65, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 28, name: "قطرات سريعة", description: "تكرارات متلاحقة لامعة بعد الريشة؛ طابع إيقاعي كثيف", controls: [-6, 1, 6, 0.25, 0.5, 0.2, 0.7, 5, 0.85, 0.78, 145, 0.7, 0, 0.7, 0, 0]),
+        RecordingPreset(id: 29, name: "مرايا بطيئة", description: "كورس عميق بطيء جدًا مع رنين متوسط ورد خفيف", controls: [0, -4, 4, 0.25, 1, 0.35, 2.2, 35, 0.65, 0.23, 650, 0.2, 0.95, 0.12, 0, 0]),
+        RecordingPreset(id: 30, name: "دوّامة", description: "كورس سريع واضح الحركة مع مساحة قصيرة جدًا", controls: [-3, 3, -3, 0.22, 0.5, 0.06, 0.6, 0, 0.4, 0, 200, 0, 0.95, 2.8, 0, 0]),
+        RecordingPreset(id: 31, name: "معدن بطيء", description: "فلانجر بطيء وعميق يغيّر اللون المعدني تدريجيًا", controls: [3, -5, 4, 0.3, 1, 0.22, 1.8, 25, 0.6, 0.2, 390, 0.2, 0.95, 0.15, 1, 0]),
+        RecordingPreset(id: 32, name: "وتر نحاسي", description: "فلانجر سريع مع وسط بارز ورنين محدود", controls: [-4, 6, -3, 0.3, 1, 0.18, 0.8, 10, 0.35, 0, 200, 0, 0.95, 2.5, 1, 0]),
+        RecordingPreset(id: 33, name: "ثلاث طبقات", description: "مضاعفة قوية وكورس متوسط يمنحان العود جسمًا واسعًا", controls: [4, -3, 1, 0.3, 1, 0.14, 0.8, 18, 0.4, 0, 200, 0, 0.5, 0.8, 0, 1]),
+        RecordingPreset(id: 34, name: "هالة زرقاء", description: "مزيج تجريبي مشرق من صدى طويل وتكرار وحركة ومضاعفة", controls: [-6, 0, 8, 0.3, 0.5, 0.95, 6, 95, 0.8, 0.8, 850, 0.58, 0.65, 0.35, 0.45, 0.5])
     ]
 }
 
