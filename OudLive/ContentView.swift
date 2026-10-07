@@ -26,7 +26,7 @@ struct ContentView: View {
                 header
                 monitor
                 LiveLatencyControl(audio: audio)
-                RhythmLauncher(audio: audio)
+                MixerView(audio: audio)
                 Picker("صفحة التحكم", selection: $page) {
                     Text("العزف").tag(0); Text("المؤثرات").tag(1); Text("التوصيل").tag(2); Text("التسجيل").tag(3)
                 }.pickerStyle(.segmented)
@@ -110,7 +110,7 @@ struct ContentView: View {
                 meter("سماعة", value: audio.outputLevel)
             }
             if audio.recording { Label("يسجّل • \(audio.recordingSeconds) ث", systemImage: "record.circle.fill").foregroundStyle(.red).font(.caption.bold()) }
-            if audio.running && !audio.monitoring { Text("التسجيل والإيقاع متاحان • مراقبة الميكروفون تحتاج سماعة").font(.caption).foregroundStyle(gold) }
+            if audio.running && !audio.monitoring { Text("التسجيل متاح • مراقبة الميكروفون تحتاج سماعة").font(.caption).foregroundStyle(gold) }
             if audio.limitingDB > 2 {
                 Label("حماية القمم تعمل • خفّض الالتقاط أو تعويض المستوى إذا أصبح الصوت مضغوطًا.", systemImage: "waveform.badge.minus")
                     .font(.caption).foregroundStyle(gold)
@@ -162,7 +162,7 @@ struct ContentView: View {
                 control(.reverb); control(.decay); control(.predelay); control(.tone)
             }.card()
             VStack(spacing: 18) {
-                effectHeading("صدى الإيقاع", icon: "repeat", effect: .delay)
+                effectHeading("تكرار الصدى", icon: "repeat", effect: .delay)
                 control(.delay); control(.delayTime); control(.feedback)
                 Button { audio.tapTempo() } label: {
                     Label("اضغط مرتين على إيقاعك", systemImage: "hand.tap").frame(maxWidth: .infinity, minHeight: 44)
@@ -293,4 +293,3 @@ struct AudioOutputPicker: UIViewRepresentable {
 private extension View {
     func card() -> some View { modifier(ThemedPanel()) }
 }
-

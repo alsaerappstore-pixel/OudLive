@@ -34,6 +34,18 @@ int main(){
         for(float v:recL)assert(std::isfinite(v)&&std::abs(v)<=.981f);
         std::cout<<"PASS: 7-second switching, no RT allocations, bounded protection and independent recording at "<<rate<<" Hz\n";
     }
+    // Closing the hardware monitor must silence only playback, never the recording.
+    for(int rate:{8000,16000,48000,96000}) {
+        oud::DSP gate; gate.set(oud::Input,0);gate.set(oud::Output,0);gate.set(oud::Mute,0);gate.set(oud::Bypass,1);gate.prepare(rate);
+        float in[64],left[64],right[64],savedL[64],savedR[64];
+        std::fill(in,in+64,.1f);
+        gate.process(in,left,right,64,savedL,savedR,false);
+        for(int i=0;i<64;++i) { assert(left[i]==0 && right[i]==0);assert(std::abs(savedL[i]-.1f)<1e-6f); }
+        gate.process(in,left,right,64,savedL,savedR,true);
+        assert(left[63]>0 && right[63]>0);
+        for(int i=0;i<64;++i) assert(std::abs(savedL[i]-.1f)<1e-6f);
+    }
+    std::cout<<"PASS: hardware monitor gating leaves recording unchanged at phone/headset rates\n";
     // Five-second delay capability affects the wet tap, never the direct onset.
     oud::DSP d;neutral(d);d.set(oud::Live,0);d.set(oud::DelayTime,5000);d.set(oud::Delay,.15);d.set(oud::Feedback,0);d.set(oud::Reverb,0);d.set(oud::Compression,0);d.set(oud::Noise,0);d.prepare(48000);
     std::vector<float>x(48000*6),l(x.size()),r(x.size()),recL(x.size()),recR(x.size());x[0]=.2f;

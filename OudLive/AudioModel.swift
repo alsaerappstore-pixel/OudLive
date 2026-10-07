@@ -163,50 +163,6 @@ final class AudioModel: ObservableObject {
     }
     @Published var stableBuffer = false { didSet { save(); if running { stop(); message = "اضغط ابدأ لتطبيق زمن المخزن الجديد." } } }
     private var saved = SavedSettings()
-    @Published private(set) var rhythmID = 0
-    @Published private(set) var rhythmPlaying = false
-    @Published private(set) var recordRhythm = true
-    func setRecordRhythm(_ enabled: Bool) {
-        guard !recording && !recordingPreparing && !recordingFinishing else { return }
-        recordRhythm = enabled; bridge.setRecordRhythmEnabled(enabled)
-        UserDefaults.standard.set(enabled, forKey: "OudLive.recordRhythm")
-    }
-    @Published private(set) var rhythmTempo: Double = 110
-    @Published private(set) var rhythmVolume: Double = 0.45
-    @Published private(set) var rhythmPosition: Float = 0
-    private var rhythmTapDate: Date?
-    var selectedRhythm: LiveRhythm? { LiveRhythm.all.first { $0.id == rhythmID } }
-    func chooseRhythm(_ rhythm: LiveRhythm) {
-        rhythmID = rhythm.id; rhythmTempo = Double(rhythm.bpm); rhythmPosition = 0
-        applyRhythm(); saveRhythm()
-    }
-    func setRhythmTempo(_ value: Double) {
-        guard value.isFinite else { return }
-        rhythmTempo = min(220, max(40, value.rounded())); applyRhythm(); saveRhythm()
-    }
-    func setRhythmVolume(_ value: Double) {
-        guard value.isFinite else { return }
-        rhythmVolume = min(1, max(0, value)); applyRhythm(); saveRhythm()
-    }
-    func tapRhythmTempo() {
-        let now = Date()
-        if let previous = rhythmTapDate {
-            let interval = now.timeIntervalSince(previous)
-            if interval >= 60.0 / 220 && interval <= 1.5 { setRhythmTempo(60 / interval) }
-        }
-        rhythmTapDate = now
-    }
-    func toggleRhythm() {
-        guard bridge.rhythmReady, selectedRhythm != nil else { message = "تعذّر تحميل مكتبة الإيقاعات. أعد تثبيت التطبيق."; return }
-        rhythmPlaying.toggle(); rhythmPosition = 0; applyRhythm()
-        if rhythmPlaying && !running && !starting { toggle() }
-    }
-    private func applyRhythm() {
-        bridge.setRhythm(rhythmID, playing: rhythmPlaying, tempo: Float(rhythmTempo), volume: Float(rhythmVolume))
-    }
-    private func saveRhythm() {
-        UserDefaults.standard.set(["id": Double(rhythmID), "tempo": rhythmTempo, "volume": rhythmVolume], forKey: "OudLive.rhythm.v1")
-    }
     private let bridge = AudioBridge()
     private let session = AVAudioSession.sharedInstance()
     private var subscriptions = Set<AnyCancellable>()
@@ -223,15 +179,8 @@ final class AudioModel: ObservableObject {
             }
             UserDefaults.standard.set(true, forKey: "OudLive.acousticBackup.v4")
         }
-        if let stored = UserDefaults.standard.dictionary(forKey: "OudLive.rhythm.v1"),
-           let id = stored["id"] as? Double, id.isFinite, id >= 0, id < Double(LiveRhythm.all.count),
-           let tempo = stored["tempo"] as? Double, tempo.isFinite,
-           let volume = stored["volume"] as? Double, volume.isFinite {
-            rhythmID = Int(id); rhythmTempo = min(220, max(40, tempo)); rhythmVolume = min(1, max(0, volume))
-        }
-        recordRhythm = (UserDefaults.standard.object(forKey: "OudLive.recordRhythm") as? Bool) ?? true
-        bridge.setRecordRhythmEnabled(recordRhythm)
-        applyRhythm()
+        UserDefaults.standard.removeObject(forKey: "OudLive.rhythm.v1")
+        UserDefaults.standard.removeObject(forKey: "OudLive.recordRhythm")
         if let data = UserDefaults.standard.data(forKey: "OudLive.soundBank.v1"), let bank = try? JSONDecoder().decode(SoundBank.self, from: data), bank.valid { soundBank = bank }
         if let data = UserDefaults.standard.data(forKey: storageKey),
            let stored = try? JSONDecoder().decode(SavedSettings.self, from: data), stored.valid {
@@ -248,7 +197,6 @@ final class AudioModel: ObservableObject {
         savedFavorite = UserDefaults.standard.data(forKey: "OudLive.favorite.v2") != nil
         Timer.publish(every: 0.07, on: .main, in: .common).autoconnect().sink { [weak self] _ in
             guard let self, self.running else { return }
-            self.rhythmPosition = self.bridge.rhythmPosition
             self.inputLevel = self.bridge.inputPeak; self.outputLevel = self.bridge.outputPeak
             self.recordingLevel = self.bridge.recordingPeak; self.recordingLimiting = self.bridge.recordingReduction
             self.limitingDB = self.bridge.gainReduction
@@ -397,7 +345,7 @@ final class AudioModel: ObservableObject {
             Task { @MainActor in
                 guard let self, self.generation == request else { return }
                 self.starting = false
-                guard granted else { self.rhythmPlaying = false; self.applyRhythm(); self.message = "اسمح بالميكروفون من إعدادات iPhone ← عود لايف ← الميكروفون."; return }
+                guard granted else { self.message = "اسمح بالميكروفون من إعدادات iPhone ← عود لايف ← الميكروفون."; return }
                 await self.start()
             }
         }
@@ -449,7 +397,7 @@ final class AudioModel: ObservableObject {
             try bridge.start(withSampleRate: session.sampleRate)
             activeRouteKey = routeKey
             running = true; UIApplication.shared.isIdleTimerDisabled = true
-            message = !monitoring ? "جاهز • الإيقاع مسموع من مكبر الآيفون؛ مراقبة الميكروفون تحتاج سماعة." : bluetoothOutput
+            message = !monitoring ? "جاهز للتسجيل • مراقبة الميكروفون تحتاج سماعة." : bluetoothOutput
                 ? "استماع مباشر دون تسجيل • سماعة البلوتوث • الالتقاط من \(inputRoute). يوجد تأخير من البلوتوث؛ السلك أسرع للعزف."
                 : "الصوت مباشر • ابدأ بمستوى منخفض وارفعه تدريجيًا."
         } catch {
@@ -459,7 +407,6 @@ final class AudioModel: ObservableObject {
     func stop() {
         if recording || recordingPreparing { finishRecording() }
         closeCameraPreview()
-        rhythmPlaying = false; rhythmPosition = 0; applyRhythm()
         generation += 1; starting = false; bridge.stop(); running = false
         inputLevel = 0; outputLevel = 0; limitingDB = 0; recordingLevel = 0; recordingLimiting = 0; monitoring = false; bridge.setMonitoringEnabled(false); UIApplication.shared.isIdleTimerDisabled = false
         try? session.setActive(false, options: .notifyOthersOnDeactivation)
@@ -615,4 +562,3 @@ extension AudioModel {
         }
     }
 }
-

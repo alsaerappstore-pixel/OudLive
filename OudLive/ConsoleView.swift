@@ -28,7 +28,7 @@ struct ConsoleView: View {
                     if !wide { recordBar }
                     listeningPanel(wide: wide)
                     LiveLatencyControl(audio: audio)
-                    RhythmLauncher(audio: audio)
+                    MixerView(audio: audio).id("console-mixer")
                     if wide {
                         HStack(alignment: .top, spacing: 12) {
                             inputPanel(compact: false).frame(width: 108)
@@ -61,6 +61,10 @@ struct ConsoleView: View {
             }
             .task {
                 #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("--console-mixer") {
+                    try? await Task.sleep(nanoseconds: 700_000_000)
+                    scroll.scrollTo("console-mixer", anchor: .top)
+                }
                 if ProcessInfo.processInfo.arguments.contains("--console-hero") {
                     audio.chooseRecordingPreset(RecordingPreset.all[7])
                     try? await Task.sleep(nanoseconds: 700_000_000)
@@ -412,4 +416,3 @@ private struct VerticalAudioMeter: View {
         }.padding(3).background(.black, in: RoundedRectangle(cornerRadius: 3)).accessibilityHidden(true)
     }
 }
-

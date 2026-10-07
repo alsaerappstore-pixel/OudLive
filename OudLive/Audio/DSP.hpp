@@ -131,7 +131,7 @@ public:
         for(auto &core:cores)core.prepare(rate,profile);active=0;fading=false;fade=1;fadeStep=1/(rate*.05f);smoothing=1-std::exp(-1/(rate*.015f));
         current[Output]=-60;limiterGain=recordLimiter=1;limiterRelease=1-std::exp(-1/(rate*.1f));inputPeak=0;outputPeak=0;gainReduction=0;recordPeak=0;recordReduction=0;
     }
-    void process(const float *in,float *left,float *right,size_t frames,float *recordLeft=nullptr,float *recordRight=nullptr,const float *backingLeft=nullptr,const float *backingRight=nullptr,bool monitorMicrophone=true,bool recordBacking=true){
+    void process(const float *in,float *left,float *right,size_t frames,float *recordLeft=nullptr,float *recordRight=nullptr,bool monitorMicrophone=true){
         const unsigned before=revision.load(std::memory_order_acquire);Controls request;for(int p=0;p<Count;++p)request[p]=get(p);
         if(!(before&1)&&revision.load(std::memory_order_acquire)==before)accepted=request;
         // Full-state linear crossfade, two preallocated continuously warm paths.
@@ -145,14 +145,12 @@ public:
             for(int c=0;c<2;++c){float enhanced=a[c]*(1-mix)+b[c]*mix;combined[c]=enhanced*(1-current[Bypass])+dry*current[Bypass];if(!std::isfinite(combined[c]))combined[c]=0;}
             gr=std::max(gr,cores[active].reduction*(1-mix)+cores[1-active].reduction*mix);
             if(fading){fade+=fadeStep;if(fade>=1){active=1-active;fading=false;fade=1;}}
-            const float backing[2]={backingLeft && std::isfinite(backingLeft[i]) ? backingLeft[i] : 0,backingRight && std::isfinite(backingRight[i]) ? backingRight[i] : 0};
-            float rec[2]={(combined[0]+(recordBacking?backing[0]:0))*db(current[RecordGain]),(combined[1]+(recordBacking?backing[1]:0))*db(current[RecordGain])};
+            float rec[2]={combined[0]*db(current[RecordGain]),combined[1]*db(current[RecordGain])};
             float maxRec=std::max(std::abs(rec[0]),std::abs(rec[1])),need=maxRec>.94f?.94f/maxRec:1;
             recordLimiter=need<recordLimiter?need:recordLimiter+limiterRelease*(need-recordLimiter);recGR=std::max(recGR,-20*std::log10(std::max(recordLimiter,1e-9f)));
             if(recordLeft)recordLeft[i]=clamp(rec[0]*recordLimiter,-.98f,.98f);if(recordRight)recordRight[i]=clamp(rec[1]*recordLimiter,-.98f,.98f);recPeak=std::max(recPeak,maxRec*recordLimiter);
             float gain=monitorMicrophone?db(current[Output])*(1-current[Mute]):0;
-            // Rhythm level is independent of the microphone monitor fader and mute.
-            float y[2]={combined[0]*gain+backing[0],combined[1]*gain+backing[1]},peak=std::max(std::abs(y[0]),std::abs(y[1]));
+            float y[2]={combined[0]*gain,combined[1]*gain},peak=std::max(std::abs(y[0]),std::abs(y[1]));
             need=peak>.94f?.94f/peak:1;limiterGain=need<limiterGain?need:limiterGain+limiterRelease*(need-limiterGain);
             left[i]=clamp(y[0]*limiterGain,-.98f,.98f);right[i]=clamp(y[1]*limiterGain,-.98f,.98f);outPeak=std::max(outPeak,peak*limiterGain);
         }
@@ -160,4 +158,3 @@ public:
     }
 };
 }
-

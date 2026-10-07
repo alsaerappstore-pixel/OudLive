@@ -6,11 +6,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)stop;
 - (void)setParameter:(NSInteger)parameter value:(float)value;
 - (void)setParameters:(NSArray<NSNumber *> *)values;
-- (void)setRecordRhythmEnabled:(BOOL)enabled;
 - (void)setMonitoringEnabled:(BOOL)enabled;
-- (void)setRhythm:(NSInteger)index playing:(BOOL)playing tempo:(float)tempo volume:(float)volume;
-@property(nonatomic, readonly) BOOL rhythmReady;
-@property(nonatomic, readonly) float rhythmPosition;
 @property(nonatomic, readonly) float recordingPeak;
 @property(nonatomic, readonly) float recordingReduction;
 - (BOOL)beginRecordingAtURL:(NSURL *)url error:(NSError **)error;
@@ -23,4 +19,3 @@ NS_ASSUME_NONNULL_BEGIN
 @property(nonatomic, readonly) int renderError;
 @end
 NS_ASSUME_NONNULL_END
-
