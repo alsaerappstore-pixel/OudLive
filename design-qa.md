@@ -42,3 +42,8 @@ Source commit: `818af85a392db0d530559786ad3602fe9e7b51c8`.
 Inspected portrait, landscape, scrolled effect rack, reverb details, sound memories, empty recording library, and retained 1980s studio layout. The main screenshots show the independent listening button and microphone selector without overlap; the landscape composition retains the input/oud/camera order. The scrolled rack shows distinct colored rings and power switches. Details retain Arabic descriptions and numeric values. The eight memory slots and empty-state library remain available. Main screen camera is intentionally inactive on the simulator.
 
 Outcome: the visual adaptation is accepted for this release, with the deliberate phone scrolling and native differences above. This is not a pixel-perfect desktop reproduction, a VoiceOver audit, or an end-to-end tap test. Some modal captures caught presentation transitions, so toolbar behavior is not asserted from those images. Build diagnostics contain existing deprecation and Swift 6 migration warnings; current Swift 5 builds and all checks pass.
+
+
+## 3.8 — acoustic presets and rhythms
+
+Reviewed simulator screenshots: exactly five preset buttons in one RTL row; open drawer contains no remaining effects-cover overlap. Effects cards use natural room/noise controls. Rhythm sheet shows regional selection, tempo and volume. Portrait, landscape and 1980 theme render successfully. Physical swipe and hardware audio remain device checks.
