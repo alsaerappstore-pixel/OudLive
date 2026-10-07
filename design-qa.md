@@ -52,3 +52,8 @@ Reviewed simulator screenshots: exactly five preset buttons in one RTL row; open
 ## 3.9 — ten illustrated presets and independent rhythm routing
 
 Reviewed simulator captures of the two-row preset grid, dynamic oud artwork and live-rhythm recording choice. Ten distinct generated oud photographs are bundled. Rhythm controls stay separate from microphone monitoring. Physical headset/camera, touch gestures and full VoiceOver interactions remain device checks.
+
+
+## 3.10 — silver mixer replaces rhythms
+
+Reviewed simulator images: five vertical black faders on silver strips, adjacent green/yellow/red segment meters, effect power buttons and readable Arabic channel labels. Input/output meters use engine peaks; effect lamps show effective setting amounts. Rhythm engine and samples removed. Real headset audio, gestures and full VoiceOver use still require device checks.
