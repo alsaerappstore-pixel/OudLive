@@ -36,7 +36,7 @@ struct ConsoleView: View {
                             cameraPanel(height: 218).frame(width: max(240, geometry.size.width * 0.32))
                         }.environment(\.layoutDirection, .leftToRight)
                     } else {
-                        hero(height: 228)
+                        hero(height: 228).id("console-hero")
                         inputPanel(compact: true)
                         cameraPanel(height: 212)
                     }
@@ -61,6 +61,11 @@ struct ConsoleView: View {
             }
             .task {
                 #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("--console-hero") {
+                    audio.chooseRecordingPreset(RecordingPreset.all[7])
+                    try? await Task.sleep(nanoseconds: 700_000_000)
+                    scroll.scrollTo("console-hero", anchor: .top)
+                }
                 if ProcessInfo.processInfo.arguments.contains("--console-presets") {
                     try? await Task.sleep(nanoseconds: 700_000_000)
                     presetsRevealed = true
@@ -84,7 +89,7 @@ struct ConsoleView: View {
         .task {
             #if DEBUG
             let arguments = ProcessInfo.processInfo.arguments
-            if arguments.contains("--console-presets") { audio.chooseRecordingPreset(RecordingPreset.all[3]) }
+            if arguments.contains("--console-presets") { audio.chooseRecordingPreset(RecordingPreset.all[8]) }
             do {
                 try? await Task.sleep(nanoseconds: 300_000_000)
                 if let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first {
@@ -179,7 +184,7 @@ struct ConsoleView: View {
     private func hero(height: CGFloat) -> some View {
         ZStack(alignment: .top) {
             GeometryReader { bounds in
-                Image("OudHero").resizable().scaledToFill().frame(width: bounds.size.width, height: height).clipped()
+                Image(SoundSettings.imageName(audio.settings.preset)).resizable().scaledToFill().frame(width: bounds.size.width, height: height).clipped()
             }
             VStack(alignment: .leading, spacing: 8) {
                 Text(audio.settings.preset).font(.headline).padding(7).background(.black.opacity(0.7), in: RoundedRectangle(cornerRadius: 6))
@@ -407,3 +412,4 @@ private struct VerticalAudioMeter: View {
         }.padding(3).background(.black, in: RoundedRectangle(cornerRadius: 3)).accessibilityHidden(true)
     }
 }
+

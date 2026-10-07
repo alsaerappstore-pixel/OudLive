@@ -6,13 +6,14 @@
 #include <iostream>
 #include <cassert>
 int main(){
+    std::cout << std::unitbuf;
     std::ifstream recipes("build/recording-presets.txt");assert(recipes.good());
-    std::array<oud::Controls,5> controls;
+    std::array<oud::Controls,10> controls;
     for(auto &c:controls)for(float &x:c){recipes>>x;assert(!recipes.fail());}
     constexpr int rate=48000,seconds=12,frames=rate*seconds;
     std::vector<float> input(frames),l(frames),r(frames),rl(frames),rr(frames);
     double minEnergy=1e30,maxEnergy=0,minPluck=1e30,maxPluck=0;
-    for(int live=0;live<2;++live)for(int preset=0;preset<5;++preset){
+    for(int live=0;live<2;++live)for(int preset=0;preset<10;++preset){
         oud::DSP d;for(int p=0;p<oud::Count;++p)d.set(p,controls[preset][p]);d.set(oud::Live,float(live));d.prepare(rate);
         // Quarter-tone test stimulus, settled duration includes more than five seconds.
         const double frequency=220*std::pow(2.,1./24.);
@@ -41,8 +42,11 @@ int main(){
         for(int i=rate*4;i<frames;++i){assert(std::isfinite(rl[i])&&std::abs(rl[i])<.94f);pluckEnergy+=rl[i]*rl[i];}
         assert(pluckEnergy>1);minPluck=std::min(minPluck,pluckEnergy);maxPluck=std::max(maxPluck,pluckEnergy);
     }
-    const double spread=10*std::log10(maxEnergy/minEnergy);assert(spread<2.5);
-    const double pluckSpread=10*std::log10(maxPluck/minPluck);assert(pluckSpread<2.5);
+    const double spread=10*std::log10(maxEnergy/minEnergy);
+    const double pluckSpread=10*std::log10(maxPluck/minPluck);
+    std::cout<<"Level spread: tone="<<spread<<" dB, pluck="<<pluckSpread<<" dB\n";
+    assert(spread<2.5);assert(pluckSpread<2.5);
     std::cout<<"PASS: 12-second articulated harmonic string stimulus, no clipping; level spread "<<pluckSpread<<" dB\n";
-    std::cout<<"PASS: exactly five profiles, 12 seconds each in both live modes, quarter-tone error <0.1 cent, steady levels and loudness spread "<<spread<<" dB on reference tone\n";
+    std::cout<<"PASS: ten profiles, 12 seconds each in both live modes, quarter-tone error <0.1 cent, steady levels and loudness spread "<<spread<<" dB on reference tone\n";
 }
+

@@ -12,7 +12,7 @@ struct QuickPresetGrid: View {
             HStack {
                 Text("الضبط السريع").font(.headline)
                 Spacer()
-                Text("خمسة أوضاع طبيعية").font(.caption2).foregroundStyle(.secondary)
+                Text("عشرة أوضاع طبيعية").font(.caption2).foregroundStyle(.secondary)
             }
             LazyVGrid(columns: columns, spacing: 7) {
                 ForEach(RecordingPreset.all) { preset in
@@ -21,6 +21,8 @@ struct QuickPresetGrid: View {
                     let accent = preset.isUnprocessed ? Color.red : era.accent(theme, palette)
                     Button { audio.chooseRecordingPreset(preset) } label: {
                         VStack(spacing: 5) {
+                            Image(preset.imageName).resizable().scaledToFill()
+                                .frame(height: 42).clipped().clipShape(RoundedRectangle(cornerRadius: 5)).accessibilityHidden(true)
                             StatusLamp(on: active)
                             Text(preset.name).font(.caption2.bold()).multilineTextAlignment(.center)
                                 .lineLimit(3).fixedSize(horizontal: false, vertical: true).frame(minHeight: 31)
@@ -379,3 +381,4 @@ struct QuickSoundBank: View {
     }
     private func edit(_ index: Int) { editing = index; name = audio.soundBank.slots[index]?.name ?? ""; showSave = true }
 }
+

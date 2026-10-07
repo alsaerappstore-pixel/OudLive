@@ -25,6 +25,7 @@ jobs:
       - name: Test recorded rhythm bank, tempo and recording mix
         run: |
           python3 scripts/generate-rhythm-patterns.py --check
+          python3 scripts/verify-preset-assets.py
           clang++ -std=c++17 -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer Tests/rhythm_tests.cpp -o build/rhythm-tests
           build/rhythm-tests | tee build/rhythm-test-results.txt
       - name: Build and package arm64 iPhone app
@@ -41,7 +42,7 @@ jobs:
         run: |
           swiftc -parse-as-library OudLive/VideoRecorder.swift OudLive/RecordingTiming.swift Tests/ExportTests/main.swift -o build/export-tests
           build/export-tests | tee build/export-test-results.txt
-      - name: Verify five acoustic presets, quarter tones and long-run stability
+      - name: Verify ten acoustic presets, quarter tones and long-run stability
         run: |
           clang++ -std=c++17 -O1 -g -fsanitize=address,undefined Tests/recording_presets.cpp -o build/preset-tests
           build/preset-tests | tee build/preset-test-results.txt
@@ -82,3 +83,4 @@ jobs:
             build/simulator.log
           if-no-files-found: ignore
           retention-days: 14
+

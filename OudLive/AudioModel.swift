@@ -165,6 +165,12 @@ final class AudioModel: ObservableObject {
     private var saved = SavedSettings()
     @Published private(set) var rhythmID = 0
     @Published private(set) var rhythmPlaying = false
+    @Published private(set) var recordRhythm = true
+    func setRecordRhythm(_ enabled: Bool) {
+        guard !recording && !recordingPreparing && !recordingFinishing else { return }
+        recordRhythm = enabled; bridge.setRecordRhythmEnabled(enabled)
+        UserDefaults.standard.set(enabled, forKey: "OudLive.recordRhythm")
+    }
     @Published private(set) var rhythmTempo: Double = 110
     @Published private(set) var rhythmVolume: Double = 0.45
     @Published private(set) var rhythmPosition: Float = 0
@@ -223,6 +229,8 @@ final class AudioModel: ObservableObject {
            let volume = stored["volume"] as? Double, volume.isFinite {
             rhythmID = Int(id); rhythmTempo = min(220, max(40, tempo)); rhythmVolume = min(1, max(0, volume))
         }
+        recordRhythm = (UserDefaults.standard.object(forKey: "OudLive.recordRhythm") as? Bool) ?? true
+        bridge.setRecordRhythmEnabled(recordRhythm)
         applyRhythm()
         if let data = UserDefaults.standard.data(forKey: "OudLive.soundBank.v1"), let bank = try? JSONDecoder().decode(SoundBank.self, from: data), bank.valid { soundBank = bank }
         if let data = UserDefaults.standard.data(forKey: storageKey),
@@ -241,7 +249,7 @@ final class AudioModel: ObservableObject {
         Timer.publish(every: 0.07, on: .main, in: .common).autoconnect().sink { [weak self] _ in
             guard let self, self.running else { return }
             self.rhythmPosition = self.bridge.rhythmPosition
-            self.inputLevel = self.bridge.inputPeak; self.outputLevel = self.monitoring ? self.bridge.outputPeak : 0
+            self.inputLevel = self.bridge.inputPeak; self.outputLevel = self.bridge.outputPeak
             self.recordingLevel = self.bridge.recordingPeak; self.recordingLimiting = self.bridge.recordingReduction
             self.limitingDB = self.bridge.gainReduction
             if self.recording, let start = self.recordingDate {
@@ -400,7 +408,7 @@ final class AudioModel: ObservableObject {
         defer { if token == generation { starting = false } }
         do {
             // Enable HFP only on explicit selection. A2DP is output-only.
-            let options: AVAudioSession.CategoryOptions = usesBluetoothMic ? [.allowBluetooth] : [.allowBluetoothA2DP]
+            let options: AVAudioSession.CategoryOptions = usesBluetoothMic ? [.allowBluetooth, .defaultToSpeaker] : [.allowBluetoothA2DP, .defaultToSpeaker]
             try session.setCategory(.playAndRecord, mode: usesBluetoothMic ? .default : .measurement, options: options)
             try session.setPreferredSampleRate(48000)
             try session.setPreferredIOBufferDuration((settings[.live] > 0.5 ? 128.0 : (stableBuffer ? 512.0 : 256.0)) / 48000.0)
@@ -441,7 +449,7 @@ final class AudioModel: ObservableObject {
             try bridge.start(withSampleRate: session.sampleRate)
             activeRouteKey = routeKey
             running = true; UIApplication.shared.isIdleTimerDisabled = true
-            message = !monitoring ? "جاهز للتسجيل دون سماعة • مكبر الآيفون صامت، والمؤثرات محفوظة في التسجيل." : bluetoothOutput
+            message = !monitoring ? "جاهز • الإيقاع مسموع من مكبر الآيفون؛ مراقبة الميكروفون تحتاج سماعة." : bluetoothOutput
                 ? "استماع مباشر دون تسجيل • سماعة البلوتوث • الالتقاط من \(inputRoute). يوجد تأخير من البلوتوث؛ السلك أسرع للعزف."
                 : "الصوت مباشر • ابدأ بمستوى منخفض وارفعه تدريجيًا."
         } catch {
@@ -607,3 +615,4 @@ extension AudioModel {
         }
     }
 }
+

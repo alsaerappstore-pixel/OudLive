@@ -16,7 +16,7 @@ struct AudioState {
     std::vector<float> input;
     std::vector<float> recordLeft,recordRight,monitorLeft,monitorRight;
     UInt32 outputChannels=2;
-    std::atomic<bool> monitoring{false};
+    std::atomic<bool> monitoring{false}, recordRhythm{true};
     std::atomic<int> error{0};
     WetFileWriter recorder;
     double sampleRate=48000;
@@ -47,7 +47,7 @@ static OSStatus render(void *context, AudioUnitRenderActionFlags *flags,
     float *right=state->outputChannels==1 ? state->monitorRight.data() : static_cast<float *>(out->mBuffers[1].mData);
     state->rhythm.render(state->rhythmLeft.data(),state->rhythmRight.data(),frames);
     state->dsp.process(static_cast<float *>(input.mBuffers[0].mData),left,right,frames,
-                       state->recordLeft.data(),state->recordRight.data(),state->rhythmLeft.data(),state->rhythmRight.data());
+                       state->recordLeft.data(),state->recordRight.data(),state->rhythmLeft.data(),state->rhythmRight.data(),state->monitoring.load(),state->recordRhythm.load());
     if(state->outputChannels==1) {
         auto *mono=static_cast<float *>(out->mBuffers[0].mData);
         for(UInt32 i=0;i<frames;++i) mono[i]=.5f*(left[i]+right[i]);
@@ -59,9 +59,8 @@ static OSStatus render(void *context, AudioUnitRenderActionFlags *flags,
         {1,UInt32(frames*sizeof(float)),state->recordRight.data()}}};
     state->recorder.append(reinterpret_cast<AudioBufferList *>(&wet),frames,
         (time->mFlags & kAudioTimeStampHostTimeValid) ? time->mHostTime : mach_absolute_time());
-    // Never send live microphone audio to the phone speaker. This gate is AFTER
-    // recording, so headphone absence cannot silence the saved file.
-    if(!state->monitoring.load()) silence();
+    // The DSP gates only microphone monitoring. Rhythm remains audible on every route.
+    // Recording and the phone-speaker microphone gate are independent.
     return noErr;
 }
 
@@ -167,6 +166,7 @@ static OSStatus render(void *context, AudioUnitRenderActionFlags *flags,
 - (int)recordingError { return _state->recorder.error.load(); }
 - (void)dealloc { [[NSNotificationCenter defaultCenter] removeObserver:self]; [self stop]; }
 - (void)setParameter:(NSInteger)parameter value:(float)value { _state->dsp.set((int)parameter,value); }
+- (void)setRecordRhythmEnabled:(BOOL)enabled { _state->recordRhythm.store(enabled); }
 - (void)setMonitoringEnabled:(BOOL)enabled { _state->monitoring.store(enabled); }
 - (float)recordingPeak { return _state->dsp.recordPeak.load(); }
 - (float)recordingReduction { return _state->dsp.recordReduction.load(); }
@@ -175,3 +175,4 @@ static OSStatus render(void *context, AudioUnitRenderActionFlags *flags,
 - (float)gainReduction { return _state->dsp.gainReduction.load(std::memory_order_relaxed); }
 - (int)renderError { return _state->error.load(std::memory_order_relaxed); }
 @end
+

@@ -47,22 +47,42 @@ int main() {
         engine.prepare(rate);engine.select(11);engine.setTempo(220);engine.setVolume(1);engine.setPlaying(true);
         oud::DSP dsp; dsp.set(oud::Bypass,1);dsp.set(oud::RecordGain,18);dsp.set(oud::Mute,1);dsp.prepare(float(rate));
         std::vector<float> mic(256,.8f),backL(256),backR(256),l(256),r(256),recL(256),recR(256);
-        double saved=0;
+        double saved=0, heard=0;
         for(int block=0;block<rate/256;++block) {
             engine.render(backL.data(),backR.data(),256);
             dsp.process(mic.data(),l.data(),r.data(),256,recL.data(),recR.data(),backL.data(),backR.data());
             for(int i=0;i<256;++i) {
-                assert(l[i]==0 && r[i]==0);
+                assert(std::isfinite(l[i]) && std::abs(l[i])<=.981f && std::abs(r[i])<=.981f);
+                heard+=l[i]*l[i];
                 assert(std::isfinite(recL[i]) && std::abs(recL[i])<=.981f && std::abs(recR[i])<=.981f);
                 saved+=recL[i]*recL[i];
             }
         }
-        assert(saved>1);
+        assert(saved>1 && heard>1);
     }
     // Raw means dry microphone plus backing, not losing the independent rhythm.
     oud::DSP dsp; dsp.set(oud::Bypass,1);dsp.set(oud::Input,0);dsp.set(oud::Output,0);dsp.set(oud::RecordGain,0);dsp.prepare(48000);
     float mic[4]={.1f,.2f,-.1f,-.2f},backL[4]={.1f,-.1f,.2f,-.2f},backR[4]={.2f,-.2f,.1f,-.1f},l[4],r[4],recL[4],recR[4];
     dsp.process(mic,l,r,4,recL,recR,backL,backR);
     for(int i=0;i<4;++i) { assert(std::abs(recL[i]-mic[i]-backL[i])<.0001f);assert(std::abs(recR[i]-mic[i]-backR[i])<.0001f); }
-    std::cout<<"PASS: raw + rhythm mix, independent muted monitor, recording limiter at 8/16/44.1/48/96 kHz\n";
+    // Excluding the rhythm from the recording must never mute it in the headphones/speaker.
+    for(int rate:{8000,16000,44100,48000,96000}) for(bool monitor:{false,true}) for(bool include:{false,true}) {
+        oud::DSP routed;
+        routed.set(oud::Bypass,1);routed.set(oud::Input,0);routed.set(oud::Output,0);routed.set(oud::RecordGain,0);routed.prepare(float(rate));
+        std::vector<float> silent(256),back(256,.12f),outL(256),outR(256),savedL(256),savedR(256);
+        routed.process(silent.data(),outL.data(),outR.data(),256,savedL.data(),savedR.data(),back.data(),back.data(),monitor,include);
+        for(int i=0;i<256;++i) {
+            assert(std::abs(outL[i]-.12f)<1e-6f && std::abs(outR[i]-.12f)<1e-6f);
+            assert(std::abs(savedL[i]-(include?.12f:0))<1e-6f);
+        }
+        std::fill(silent.begin(),silent.end(),.05f);
+        routed.process(silent.data(),outL.data(),outR.data(),256,savedL.data(),savedR.data(),back.data(),back.data(),monitor,include);
+        for(int i=0;i<256;++i) {
+            assert(std::abs(savedL[i]-(include?.17f:.05f))<1e-6f);
+            if(!monitor) assert(std::abs(outL[i]-.12f)<1e-6f);
+            else assert(outL[i]>.12f);
+        }
+    }
+    std::cout<<"PASS: live rhythm with/without microphone monitoring, independent include/exclude recording, preserved dry mic, bounded mix at 8/16/44.1/48/96 kHz\n";
 }
+

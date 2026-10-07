@@ -39,9 +39,10 @@ struct RhythmLauncher: View {
                 Spacer()
                 Button("اختيار الإيقاع والسرعة") { showingLibrary = true }.font(.caption.bold()).frame(minHeight: 32)
             }
+            RhythmRecordingChoice(audio: audio)
             if audio.rhythmPlaying {
                 RhythmPulse(audio: audio)
-                Text(audio.monitoring ? "تسمعه الآن • يدخل في التسجيل تلقائيًا" : "الإيقاع يعمل ويدخل في التسجيل • وصّل سماعة لسماعه")
+                Text(audio.recordRhythm ? "إيقاع مباشر • سيُحفظ مع الصوت والفيديو" : "إيقاع مباشر • مستبعد من مزيج التسجيل")
                     .font(.caption2).foregroundStyle(.secondary)
             }
         }.padding(14).background(.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 16))
@@ -145,7 +146,8 @@ struct RhythmLibrary: View {
             }
             Text("اسحب القرص لأعلى للزيادة أو لأسفل للتقليل. السرعة محسوبة على النوتة السوداء (ربع)، من ٤٠ إلى ٢٢٠.")
                 .font(.caption2).foregroundStyle(.secondary)
-            Text("يُدمج الإيقاع مع العود بعد المؤثرات، ويُحفظ تلقائيًا مع تسجيل الصوت أو الفيديو. للاستماع المباشر وصّل سماعة.")
+            RhythmRecordingChoice(audio: audio)
+            Text("الإيقاع مسموع فور تشغيله من الجوال أو السماعة، قبل التسجيل وأثناءه. مستوى الإيقاع مستقل عن كتم مراقبة العود.")
                 .font(.caption).foregroundStyle(.secondary)
         }.padding(14).background(.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 16))
     }
@@ -163,6 +165,24 @@ struct RhythmLibrary: View {
                 .background(audio.rhythmID == rhythm.id ? Color.orange.opacity(0.12) : Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12))
                 .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(audio.rhythmID == rhythm.id ? Color.orange : Color.clear))
         }.buttonStyle(.plain).accessibilityAddTraits(audio.rhythmID == rhythm.id ? .isSelected : [])
+    }
+}
+
+@MainActor
+private struct RhythmRecordingChoice: View {
+    @ObservedObject var audio: AudioModel
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Picker("الإيقاع في التسجيل", selection: Binding(get: { audio.recordRhythm }, set: { audio.setRecordRhythm($0) })) {
+                Text("حفظ مع التسجيل").tag(true)
+                Text("استماع فقط").tag(false)
+            }.pickerStyle(.segmented).disabled(audio.recording || audio.recordingPreparing || audio.recordingFinishing)
+            if !audio.recordRhythm {
+                Text("لسماع الإيقاع دون التقاطه بالمايك استخدم سماعة؛ صوت مكبر الجوال قد يدخل التسجيل عبر الميكروفون.")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
+            if audio.recording { Text("اختيار الحفظ ثابت حتى نهاية هذا التسجيل.").font(.caption2).foregroundStyle(.secondary) }
+        }
     }
 }
 
@@ -241,3 +261,4 @@ struct EffectsPresetDrawer<Cover: View, Back: View>: View {
             .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.cyan.opacity(0.22)))
     }
 }
+

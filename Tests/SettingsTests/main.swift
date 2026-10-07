@@ -1,5 +1,5 @@
 import Foundation
-let names = ["Slow Metal", "Dry Rhythm", "Stone Chamber", "Wooden Majlis", "Sharp Pick"]
+let names = ["Slow Metal", "Dry Rhythm", "Stone Chamber", "Wooden Majlis", "Sharp Pick", "Velvet Bass", "Clear Studio", "Open Courtyard", "Tarab Hall", "Silk Strings"]
 precondition(SoundSettings.names == names && RecordingPreset.all.map(\.name) == names)
 precondition(Parameter.allCases.count == 24 && SoundMode.allCases == [.oud])
 let legacy = """
@@ -27,14 +27,15 @@ for recipe in RecordingPreset.all {
         precondition(saved.disabledEffects == off.disabledEffects)
     }
 }
-precondition(unique.count == 5)
+precondition(unique.count == 10)
+precondition(Set(RecordingPreset.all.map(\.imageName)).count == 10)
 try FileManager.default.createDirectory(atPath: "build", withIntermediateDirectories: true)
 try rows.joined(separator: "\n").write(toFile: "build/recording-presets.txt", atomically: true, encoding: .utf8)
 var bank = SoundBank(); let sound = NamedSound(name: "مجلسي", mode: .oud, settings: migrated); bank.save(sound, at: 2)
 var restored = try JSONDecoder().decode(SoundBank.self, from: JSONEncoder().encode(bank))
 precondition(restored.valid && restored.slots[2]?.settings.values == migrated.values)
 restored.clear(2); precondition(restored.slots[2] == nil)
-print("PASS: exactly five acoustic recipes, safe legacy migration, current persistence, switches, eight custom slots and recipe export")
+print("PASS: ten acoustic recipes, safe legacy migration, current persistence, switches, eight custom slots and recipe export")
 let audioFirst = RecordingTiming(audioStart: 10, videoStart: 12, audioDuration: 8, videoDuration: 9)!
 precondition(audioFirst.audioTrim == 2 && audioFirst.videoTrim == 0 && audioFirst.duration == 6)
 let videoFirst = RecordingTiming(audioStart: 12, videoStart: 10, audioDuration: 8, videoDuration: 9)!
@@ -62,3 +63,4 @@ precondition(FileManager.default.fileExists(atPath: takeURLs[2].path) && FileMan
 let all = RecordingEntry.deletionURLs(takes, selected: Set(takes.map(\.id)), directory: takesRoot)
 precondition(Set(all) == Set(takeURLs))
 print("PASS: legacy WAV/MP4 pairs group once; selected/all deletion includes both siblings and rejects files outside the library")
+

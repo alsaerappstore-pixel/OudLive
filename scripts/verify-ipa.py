@@ -23,7 +23,8 @@ with zipfile.ZipFile(sys.argv[1]) as ipa:
         assert hashlib.sha256(bank).hexdigest() == sample['bundledSHA256']
         assert struct.unpack('<I', bank[:4])[0] * 4 + 4 == len(bank)
     rhythms = json.loads(ipa.read(root + 'RhythmBank/catalogue.json'))
-    assert len(rhythms) == 36 and [r['id'] for r in rhythms] == list(range(36))
+    assert len(rhythms) == 60 and [r['id'] for r in rhythms] == list(range(60))
     assert ipa.read(root + 'RhythmBank/CC0-LICENSE.txt')
     assert ipa.testzip() is None
-print('IPA structure, device platform, arm64, 36 rhythms, recorded sample bank, license and ZIP integrity verified.')
+print('IPA structure, device platform, arm64, 60 rhythms, recorded sample bank, license and ZIP integrity verified.')
+
