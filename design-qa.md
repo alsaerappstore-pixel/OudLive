@@ -47,3 +47,8 @@ Outcome: the visual adaptation is accepted for this release, with the deliberate
 ## 3.8 — acoustic presets and rhythms
 
 Reviewed simulator screenshots: exactly five preset buttons in one RTL row; open drawer contains no remaining effects-cover overlap. Effects cards use natural room/noise controls. Rhythm sheet shows regional selection, tempo and volume. Portrait, landscape and 1980 theme render successfully. Physical swipe and hardware audio remain device checks.
+
+
+## 3.9 — ten illustrated presets and independent rhythm routing
+
+Reviewed simulator captures of the two-row preset grid, dynamic oud artwork and live-rhythm recording choice. Ten distinct generated oud photographs are bundled. Rhythm controls stay separate from microphone monitoring. Physical headset/camera, touch gestures and full VoiceOver interactions remain device checks.
