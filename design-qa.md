@@ -57,3 +57,8 @@ Reviewed simulator captures of the two-row preset grid, dynamic oud artwork and 
 ## 3.10 — silver mixer replaces rhythms
 
 Reviewed simulator images: five vertical black faders on silver strips, adjacent green/yellow/red segment meters, effect power buttons and readable Arabic channel labels. Input/output meters use engine peaks; effect lamps show effective setting amounts. Rhythm engine and samples removed. Real headset audio, gestures and full VoiceOver use still require device checks.
+
+
+## 3.11 — audible effect ranges and sixth mixer channel
+
+Reviewed simulator mixer: six silver channels including bass-body EQ, neutral reset, expanded effect ranges and accessible explanations. DSP differences are measured independently; lamps alone are not used as audio verification. Physical listening and touch tests remain device checks.
