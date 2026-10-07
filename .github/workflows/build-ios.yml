@@ -41,7 +41,7 @@ jobs:
         run: |
           swiftc -parse-as-library OudLive/VideoRecorder.swift OudLive/RecordingTiming.swift Tests/ExportTests/main.swift -o build/export-tests
           build/export-tests | tee build/export-test-results.txt
-      - name: Render and compare the 35 quick presets including raw
+      - name: Verify five acoustic presets, quarter tones and long-run stability
         run: |
           clang++ -std=c++17 -O1 -g -fsanitize=address,undefined Tests/recording_presets.cpp -o build/preset-tests
           build/preset-tests | tee build/preset-test-results.txt

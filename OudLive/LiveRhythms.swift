@@ -196,57 +196,48 @@ private struct RhythmKnob: View {
     }
 }
 
-private struct DrawerCoverHeight: PreferenceKey {
-    static var defaultValue: CGFloat = 700
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
-}
-private struct DrawerBackHeight: PreferenceKey {
-    static var defaultValue: CGFloat = 590
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+@MainActor
+struct LiveLatencyControl: View {
+    @ObservedObject var audio: AudioModel
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Toggle("استجابة حية • Live Low Latency", isOn: Binding(get: { audio.value(.live) > 0.5 }, set: { audio.setLiveLatency($0) }))
+                .font(.subheadline.bold()).disabled(audio.recording || audio.recordingPreparing || audio.recordingFinishing || audio.starting)
+            Text("مسار أصلي فوري بلا انتظار مسبق؛ يوقف الرجع ويضيق رنين المكان. تأخير البلوتوث تحدده السماعة والنظام.")
+                .font(.caption2).foregroundStyle(.secondary)
+        }.padding(12).background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+    }
 }
 
-// The effects are a real front layer. Only its handle takes the vertical drag;
-// knob drags and scrolling remain independent. Tap/VoiceOver is equivalent.
 struct EffectsPresetDrawer<Cover: View, Back: View>: View {
     @Binding var revealed: Bool
     let cover: Cover
     let back: Back
-    @State private var coverHeight: CGFloat = 700
-    @State private var backHeight: CGFloat = 590
-    @GestureState private var drag: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    private let handleHeight: CGFloat = 68
-    private var offset: CGFloat { min(0, max(-coverHeight, (revealed ? -coverHeight : 0) + drag)) }
     private func setOpen(_ value: Bool) {
-        withAnimation(reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.88)) { revealed = value }
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.28)) { revealed = value }
+    }
+    private var handle: some View {
+        Button { setOpen(!revealed) } label: {
+            VStack(spacing: 7) {
+                Capsule().fill(.white.opacity(0.4)).frame(width: 48, height: 4)
+                Label(revealed ? "إرجاع لوحة المؤثرات" : "ارفع المؤثرات لكشف الضبط السريع", systemImage: revealed ? "chevron.down" : "chevron.up").font(.caption.bold())
+            }.frame(maxWidth: .infinity).frame(height: 64).contentShape(Rectangle())
+        }.buttonStyle(.plain).accessibilityHint("اضغط أو اسحب المقبض عموديًا")
+            .simultaneousGesture(DragGesture(minimumDistance: 15).onEnded { value in
+                if value.translation.height < -35 { setOpen(true) }
+                else if value.translation.height > 35 { setOpen(false) }
+            })
     }
     var body: some View {
         ZStack(alignment: .top) {
-            back.padding(10).fixedSize(horizontal: false, vertical: true)
-                .background(GeometryReader { geometry in Color.clear.preference(key: DrawerBackHeight.self, value: geometry.size.height) })
-                .padding(.top, handleHeight).accessibilityHidden(!revealed).allowsHitTesting(revealed)
-            VStack(spacing: 0) {
-                cover.padding(10).fixedSize(horizontal: false, vertical: true)
-                    .background(GeometryReader { geometry in Color.clear.preference(key: DrawerCoverHeight.self, value: geometry.size.height) })
-                    .accessibilityHidden(revealed).allowsHitTesting(!revealed)
-                Button { setOpen(!revealed) } label: {
-                    VStack(spacing: 7) {
-                        Capsule().fill(.white.opacity(0.4)).frame(width: 48, height: 4)
-                        Label(revealed ? "إرجاع لوحة المؤثرات" : "ارفع المؤثرات لكشف الضبط السريع", systemImage: revealed ? "chevron.down" : "chevron.up")
-                            .font(.caption.bold())
-                    }.frame(maxWidth: .infinity).frame(height: handleHeight).contentShape(Rectangle())
-                }.buttonStyle(.plain).accessibilityHint("يمكن أيضًا الضغط لتبديل اللوحة")
-                    .simultaneousGesture(DragGesture(minimumDistance: 15).updating($drag) { value, state, _ in state = value.translation.height }
-                        .onEnded { value in
-                            if value.translation.height < -45 { setOpen(true) }
-                            else if value.translation.height > 45 { setOpen(false) }
-                        })
-            }.background(Color(red: 0.045, green: 0.073, blue: 0.092)).offset(y: offset)
-        }.frame(height: (revealed ? backHeight : coverHeight) + handleHeight, alignment: .top)
-            .background(Color(red: 0.018, green: 0.038, blue: 0.052))
+            if revealed {
+                VStack(spacing: 0) { handle; back.padding(12) }.transition(.opacity)
+            } else {
+                VStack(spacing: 0) { cover.padding(10); handle }.transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }.frame(maxWidth: .infinity).background(Color(red: 0.045, green: 0.073, blue: 0.092))
             .clipShape(RoundedRectangle(cornerRadius: 16))
             .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.cyan.opacity(0.22)))
-            .onPreferenceChange(DrawerCoverHeight.self) { if abs(coverHeight - $0) > 1 { coverHeight = $0 } }
-            .onPreferenceChange(DrawerBackHeight.self) { if abs(backHeight - $0) > 1 { backHeight = $0 } }
     }
 }

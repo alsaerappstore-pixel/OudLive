@@ -5,45 +5,44 @@
 #include <fstream>
 #include <iostream>
 #include <cassert>
-#include <memory>
-int main() {
-    std::ifstream recipes("build/recording-presets.txt"); assert(recipes.good());
-    constexpr int rate=48000, frames=rate*6;
-    std::vector<float> dry(frames),left(frames),right(frames),wetL(frames),wetR(frames);
-    // A repeatable plucked-string-like stimulus followed by silence for tail checks.
-    for(int i=0;i<rate*2;++i) {
-        double t=double(i)/rate, age=std::fmod(t,.4);
-        double string=0;
-        for(int harmonic=1;harmonic<=24;++harmonic) string+=std::sin(2*oud::pi*220*harmonic*t)/std::pow(harmonic,1.3);
-        dry[i]=float(.12*std::exp(-age*9)*string);
-    }
-    std::vector<std::vector<float>> outputs;
-    for(int preset=0;preset<35;++preset) {
-        auto dsp=std::make_unique<oud::DSP>(); dsp->prepare(rate);
-        for(int p=0;p<oud::Count;++p) { float value=0; recipes>>value; assert(recipes.good() || recipes.eof()); assert(!recipes.fail()); dsp->set(p,value); }
-        std::vector<float> silence(rate,0), a(rate), b(rate); dsp->process(silence.data(),a.data(),b.data(),rate);
-        for(int start=0;start<frames;start+=256) {
-            int count=std::min(256,frames-start);
-            dsp->process(dry.data()+start,left.data()+start,right.data()+start,count,wetL.data()+start,wetR.data()+start);
+int main(){
+    std::ifstream recipes("build/recording-presets.txt");assert(recipes.good());
+    std::array<oud::Controls,5> controls;
+    for(auto &c:controls)for(float &x:c){recipes>>x;assert(!recipes.fail());}
+    constexpr int rate=48000,seconds=12,frames=rate*seconds;
+    std::vector<float> input(frames),l(frames),r(frames),rl(frames),rr(frames);
+    double minEnergy=1e30,maxEnergy=0,minPluck=1e30,maxPluck=0;
+    for(int live=0;live<2;++live)for(int preset=0;preset<5;++preset){
+        oud::DSP d;for(int p=0;p<oud::Count;++p)d.set(p,controls[preset][p]);d.set(oud::Live,float(live));d.prepare(rate);
+        // Quarter-tone test stimulus, settled duration includes more than five seconds.
+        const double frequency=220*std::pow(2.,1./24.);
+        for(int i=0;i<frames;++i)input[i]=float(.12*std::sin(2*3.141592653589793*frequency*i/rate));
+        for(int start=0;start<frames;start+=128)d.process(input.data()+start,l.data()+start,r.data()+start,std::min(128,frames-start),rl.data()+start,rr.data()+start);
+        std::vector<double> crossings;std::array<double,seconds> energy{};
+        for(int i=1;i<frames;++i){
+            assert(std::isfinite(rl[i])&&std::abs(rl[i])<.94f&&std::isfinite(rr[i]));energy[i/rate]+=rl[i]*rl[i];
+            if(i>rate*6&&rl[i-1]<=0&&rl[i]>0)crossings.push_back(i-1-rl[i-1]/double(rl[i]-rl[i-1]));
         }
-        double energy=0; float peak=0;
-        for(int i=0;i<frames;++i) { assert(std::isfinite(wetL[i])&&std::isfinite(wetR[i])); peak=std::max(peak,std::max(std::abs(wetL[i]),std::abs(wetR[i]))); energy+=double(wetL[i])*wetL[i]; }
-        assert(energy>1 && peak<.95f);
-        if(preset==0) {
-            for(int i=0;i<frames;++i) assert(std::abs(wetL[i]-dry[i])<1e-6f && std::abs(wetR[i]-dry[i])<1e-6f);
-            std::cout<<"PASS: raw quick preset matches unfiltered input on both recording channels including silent tail\n";
+        assert(crossings.size()>100);
+        const double measured=(crossings.size()-1)*rate/(crossings.back()-crossings.front());
+        const double cents=1200*std::log2(measured/frequency);assert(std::abs(cents)<.1);
+        double low=1e30,high=0;for(int sec=4;sec<seconds;++sec){low=std::min(low,energy[sec]);high=std::max(high,energy[sec]);assert(energy[sec]>.1);}
+        assert(high/low<1.03);assert(d.gainReduction.load()<=4.001f);
+        double e=energy[10];minEnergy=std::min(minEnergy,e);maxEnergy=std::max(maxEnergy,e);
+        std::cout<<"Profile "<<preset<<" live="<<live<<" pitchErrorCents="<<cents<<" steadyEnergy="<<e<<"\n";
+        d.prepare(rate);
+        for(int i=0;i<frames;++i){
+            double t=double(i)/rate,age=std::fmod(t,.25),attack=std::min(1.,age/.002);
+            double string=0;for(int h=1;h<=12;++h)string+=std::sin(2*3.141592653589793*113.223246*h*t)/std::pow(h,1.4);
+            input[i]=float(.15*attack*std::exp(-age*8)*string);
         }
-        outputs.push_back(wetL);
-        std::cout<<"Preset "<<preset+1<<": peak="<<peak<<", energy="<<energy<<"\n";
+        double pluckEnergy=0;
+        for(int start=0;start<frames;start+=128)d.process(input.data()+start,l.data()+start,r.data()+start,std::min(128,frames-start),rl.data()+start,rr.data()+start);
+        for(int i=rate*4;i<frames;++i){assert(std::isfinite(rl[i])&&std::abs(rl[i])<.94f);pluckEnergy+=rl[i]*rl[i];}
+        assert(pluckEnergy>1);minPluck=std::min(minPluck,pluckEnergy);maxPluck=std::max(maxPluck,pluckEnergy);
     }
-    double closest=1;
-    for(int i=0;i<35;++i) for(int j=0;j<i;++j) {
-        double aa=0,bb=0,ab=0;
-        for(int k=0;k<frames;++k) { aa+=double(outputs[i][k])*outputs[i][k]; bb+=double(outputs[j][k])*outputs[j][k]; ab+=double(outputs[i][k])*outputs[j][k]; }
-        double difference=std::sqrt(std::max(0.0,2-2*ab/std::sqrt(aa*bb)));
-        closest=std::min(closest,difference);
-        if(difference<.30) std::cout<<"Close pair "<<j<<" vs "<<i<<": "<<difference<<std::endl;
-    }
-    assert(closest>.30);
-    std::cout<<"PASS: 35 recipes rendered finite, non-silent, unclipped and pairwise different after level normalization; smallest difference="<<closest<<"\n";
+    const double spread=10*std::log10(maxEnergy/minEnergy);assert(spread<2.5);
+    const double pluckSpread=10*std::log10(maxPluck/minPluck);assert(pluckSpread<2.5);
+    std::cout<<"PASS: 12-second articulated harmonic string stimulus, no clipping; level spread "<<pluckSpread<<" dB\n";
+    std::cout<<"PASS: exactly five profiles, 12 seconds each in both live modes, quarter-tone error <0.1 cent, steady levels and loudness spread "<<spread<<" dB on reference tone\n";
 }

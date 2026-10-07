@@ -128,6 +128,12 @@ static OSStatus render(void *context, AudioUnitRenderActionFlags *flags,
     return YES;
 }
 - (BOOL)rhythmReady { return _state->rhythm.ready(); }
+- (void)setParameters:(NSArray<NSNumber *> *)values {
+    if(values.count!=oud::Count) return;
+    _state->dsp.beginUpdate();
+    for(NSInteger index=0;index<values.count;++index) _state->dsp.set((int)index,values[index].floatValue);
+    _state->dsp.endUpdate();
+}
 - (float)rhythmPosition { return _state->rhythm.position(); }
 - (void)setRhythm:(NSInteger)index playing:(BOOL)playing tempo:(float)tempo volume:(float)volume {
     _state->rhythm.select((int)index); _state->rhythm.setTempo(tempo);

@@ -12,7 +12,7 @@ struct QuickPresetGrid: View {
             HStack {
                 Text("الضبط السريع").font(.headline)
                 Spacer()
-                Text("٣٥ خيارًا • ٥ في كل صف").font(.caption2).foregroundStyle(.secondary)
+                Text("خمسة أوضاع طبيعية").font(.caption2).foregroundStyle(.secondary)
             }
             LazyVGrid(columns: columns, spacing: 7) {
                 ForEach(RecordingPreset.all) { preset in
@@ -40,7 +40,7 @@ struct QuickPresetGrid: View {
             }
             Text("الحالي: \(audio.settings.preset)").font(.subheadline.bold())
             Text(SoundSettings.detail(audio.settings.preset)).font(.caption).fixedSize(horizontal: false, vertical: true)
-            Text("الاختيار يغيّر المؤثرات ويحافظ على مستوياتك. الزر الأحمر يتجاوز فلاتر التطبيق؛ تبقى حماية القمم.")
+            Text("الأوضاع تحافظ على طبقة العود وأرباع الصوت. الانتقال متدرج ويحافظ على مستوياتك.")
                 .font(.caption2).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }.environment(\.layoutDirection, .rightToLeft)
     }
@@ -206,9 +206,9 @@ struct ThemeParameterControl: View {
 }
 
 extension Effect {
-    var title: String { switch self { case .reverb: return "مساحة"; case .delay: return "تكرار"; case .motion: return "حركة"; case .doubler: return "مضاعفة"; case .eq: return "نبرة"; case .compressor: return "ضغط" } }
-    var symbol: String { switch self { case .reverb: return "building.columns"; case .delay: return "repeat"; case .motion: return "waveform.path"; case .doubler: return "square.on.square"; case .eq: return "slider.horizontal.3"; case .compressor: return "waveform" } }
-    var summary: String { switch self { case .reverb: return "رنين المكان"; case .delay: return "نسخ متكررة"; case .motion: return "كورس / فلانجر"; case .doubler: return "طبقة إضافية"; case .eq: return "دفء ولمعان"; case .compressor: return "توازن القوة" } }
+    var title: String { switch self { case .reverb: return "مساحة"; case .delay: return "تكرار"; case .space: return "مكان"; case .noise: return "هدوء"; case .eq: return "نبرة"; case .compressor: return "ضغط" } }
+    var symbol: String { switch self { case .reverb: return "building.columns"; case .delay: return "repeat"; case .space: return "waveform.path"; case .noise: return "square.on.square"; case .eq: return "slider.horizontal.3"; case .compressor: return "waveform" } }
+    var summary: String { switch self { case .reverb: return "رنين المكان"; case .delay: return "نسخ متكررة"; case .space: return "انعكاسات واتساع"; case .noise: return "ضجيج خافت"; case .eq: return "دفء ولمعان"; case .compressor: return "توازن القوة" } }
 }
 
 

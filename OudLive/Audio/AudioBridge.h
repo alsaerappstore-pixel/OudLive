@@ -5,6 +5,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)startWithSampleRate:(double)sampleRate error:(NSError **)error;
 - (void)stop;
 - (void)setParameter:(NSInteger)parameter value:(float)value;
+- (void)setParameters:(NSArray<NSNumber *> *)values;
 - (void)setMonitoringEnabled:(BOOL)enabled;
 - (void)setRhythm:(NSInteger)index playing:(BOOL)playing tempo:(float)tempo volume:(float)volume;
 @property(nonatomic, readonly) BOOL rhythmReady;

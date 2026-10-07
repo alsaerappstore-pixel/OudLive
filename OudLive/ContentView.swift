@@ -25,6 +25,7 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 12) {
                 header
                 monitor
+                LiveLatencyControl(audio: audio)
                 RhythmLauncher(audio: audio)
                 Picker("صفحة التحكم", selection: $page) {
                     Text("العزف").tag(0); Text("المؤثرات").tag(1); Text("التوصيل").tag(2); Text("التسجيل").tag(3)
@@ -47,7 +48,7 @@ struct ContentView: View {
             TextField("اسم الصوت", text: $soundName)
             Button("حفظ") { audio.saveSound(soundName); soundName = "" }
             Button("إلغاء", role: .cancel) {}
-        } message: { Text("يحفظ المؤثرات ومفاتيح تشغيلها لوضع العود أو الصوت البشري.") }
+        } message: { Text("يحفظ تخصيصك الطبيعي للعود ومفاتيح تشغيل المؤثرات.") }
         .environment(\.oudEra, era)
         .environment(\.oudTheme, theme)
         .environment(\.oudPalette, palette)
@@ -168,14 +169,12 @@ struct ContentView: View {
                 }.buttonStyle(.bordered)
             }.card()
             VStack(spacing: 18) {
-                effectHeading("الحركة", icon: "waveform.path", effect: .motion)
-                control(.flanger)
-                Text("الكورس يضيف طبقات متقاربة للامتلاء؛ الفلانجر يعطي تموّجًا بنبرة معدنية. الطابعان بديلان في هذه الوحدة.").font(.caption).foregroundStyle(.secondary)
-                control(.modulation); control(.modRate)
+                effectHeading("المكان الطبيعي", icon: "building.2", effect: .space)
+                control(.roomSize); control(.width); control(.early)
             }.card()
             VStack(spacing: 18) {
-                effectHeading("مضاعفة الصوت • Doubler", icon: "square.on.square", effect: .doubler)
-                control(.doubler)
+                effectHeading("تهدئة الضجيج", icon: "waveform", effect: .noise)
+                control(.noise)
             }.card()
             VStack(spacing: 18) {
                 effectHeading("موازنة النغمة • EQ", icon: "slider.horizontal.3", effect: .eq)
@@ -187,9 +186,7 @@ struct ContentView: View {
                 control(.compression); control(.makeup)
                 Text("التعويض يرفع مستوى الصوت بعد الضغط. إذا عملت حماية القمم باستمرار، خفّضه.").font(.caption).foregroundStyle(.secondary)
             }.card()
-            if audio.mode == .voice {
-                Text("إعدادات الصوت البشري مستقلة. Auto‑Tune غير متاح في هذه النسخة.").font(.footnote).foregroundStyle(.secondary)
-            }
+
         }
     }
     private var connection: some View {
@@ -266,12 +263,12 @@ struct ContentView: View {
                     Text("من زر الشكل أعلى الشاشة اختر استوديو للمقابض الدقيقة، بسيط للأصوات بضغطة، أو مسرح للمفاتيح الكبيرة. كل الأشكال تصل إلى المؤثرات والتسجيل والتوصيل. تغيير الشكل لا يغيّر الصوت.")
                     Text("إضاءة المسرح تتبع مستوى الصوت المعالج مع حالة المؤثر؛ ليست مقياسًا منفصلًا لكل وحدة. يمكنك إطفاء الوهج وإخفاء الشروح من قائمة الشكل. المقابض تُضبط بالسحب لأعلى وأسفل وبأزرار + و− للضبط الدقيق. اختر الثمانينات للنيكل والمقابض المعدنية، التسعينات لشاشة رقمية ولمبات خضراء، والألفينات للزجاج. الحقبة مستقلة عن طريقة العرض.")
                     Text("١. يمكنك التسجيل مباشرة بدون سماعة من صفحة التسجيل. للاستماع المباشر وصّل سماعة، ثم ابدأ المعالجة واسمح بالميكروفون.")
-                    Text("٢. جرّب قاعة كبيرة للصدى القوي، أو فخم / ثقيل للامتلاء. ارفع تقوية الالتقاط تدريجيًا بزر +6 dB إذا كان الصوت ضعيفًا.")
+                    Text("٢. اختر أحد الأوضاع الطبيعية الخمسة. جرّب Wooden Majlis للدفء أو Dry Rhythm للعزف السريع، واضبط الالتقاط تدريجيًا.")
                     Text("٣. قوة المؤثرات تغيّر كمية الصدى والحركة معًا. من صفحة المؤثرات اضبط طول الذيل وفاصل البداية، واضغط مرتين لضبط الصدى على إيقاعك.")
                     Text("مؤشر الالتقاط يقيس الصوت بعد التقوية الرقمية. التقوية ترفع الضجيج أيضًا ولا تصلح تشوّهًا حدث في الميكروفون. قرّب الهاتف واستخدم مستوى مناسبًا.")
                     Text("حماية القمم تخفض المستوى عند الحاجة. ابدأ بخروج منخفض، وأبعد الميكروفون عن أي مكبر صوت خارجي لتجنب الصفير.")
                     Text("بعد مكالمة أو تغيير السماعة، اضغط ابدأ مجددًا. Bluetooth A2DP يضيف تأخيرًا، والسلك أسرع للعزف المتزامن. ميكروفون سماعة البلوتوث غير مستخدم.")
-                    Text("تحفظ الإعدادات لكل وضع، ويمكن حفظ لونك المفضل. Auto‑Tune غير متاح. زر المقارنة يتجاوز المؤثرات مع بقاء كسب الإدخال والخروج والكتم وحماية القمم.")
+                    Text("يمكن حفظ تخصيصك في الخانات. زر المقارنة يتجاوز المعالجة مؤقتًا مع بقاء المستويات وحماية القمم. جميع الأوضاع تحافظ على الطبقة وأرباع الصوت.")
                 }.padding(24)
             }.toolbar { Button("تم") { showHelp = false } }.navigationTitle("دليل العزف")
             .safeAreaInset(edge: .bottom) { CopyrightFooter().background(.ultraThinMaterial) }

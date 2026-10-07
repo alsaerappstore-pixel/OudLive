@@ -12,7 +12,7 @@ struct PerformanceModes: View {
     @AppStorage("OudLive.reactiveLights") private var lights = true
     @AppStorage("OudLive.showExplanations") private var explanations = true
     @State private var allSounds = false
-    private let effects: [Effect] = [.reverb, .delay, .motion, .doubler, .eq, .compressor]
+    private let effects: [Effect] = [.reverb, .delay, .space, .noise, .eq, .compressor]
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             if theme == .studio { studio }
@@ -50,16 +50,8 @@ struct PerformanceModes: View {
         VStack(alignment: .leading, spacing: 18) {
             Text("اختر طابع عزفك").font(.title2.bold())
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                preset("عود صافي", icon: "leaf")
-                preset("طرب دافئ", icon: "sun.max")
-                preset("قاعة كبيرة", icon: "building.columns")
-                preset("مشكل", icon: "sparkles")
+                ForEach(SoundSettings.names, id: \.self) { preset($0, icon: "leaf") }
             }
-            DisclosureGroup("كل الأصوات • ١٢ طابعًا", isExpanded: $allSounds) {
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                    ForEach(SoundSettings.names, id: \.self) { preset($0, icon: "waveform") }
-                }.padding(.top, 12)
-            }.font(.headline)
             VStack(spacing: 18) {
                 ThemeParameterControl(audio: audio, parameter: .intensity)
                 ThemeParameterControl(audio: audio, parameter: .input)
@@ -72,7 +64,7 @@ struct PerformanceModes: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack { Text("لوحة المسرح").font(.title2.bold()); Spacer(); presetMenu }
             HStack(spacing: 8) {
-                ForEach(["عود صافي", "مسرح", "مشكل"], id: \.self) { name in
+                ForEach(SoundSettings.names, id: \.self) { name in
                     Button(name) { audio.choosePreset(name) }.font(.subheadline.bold()).frame(maxWidth: .infinity, minHeight: 48)
                         .background(era.accent(theme, palette).opacity(audio.settings.preset == name ? 0.27 : 0.08), in: RoundedRectangle(cornerRadius: 8))
                 }

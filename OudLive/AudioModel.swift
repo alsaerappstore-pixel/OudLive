@@ -211,6 +211,12 @@ final class AudioModel: ObservableObject {
 
     @Published private(set) var soundBank = SoundBank()
     init() {
+        if !UserDefaults.standard.bool(forKey: "OudLive.acousticBackup.v4") {
+            for key in ["OudLive.soundBank.v1", "OudLive.namedSounds.v1", "OudLive.favorite.v2", storageKey] {
+                if let data = UserDefaults.standard.data(forKey: key) { UserDefaults.standard.set(data, forKey: key + ".beforeAcoustic") }
+            }
+            UserDefaults.standard.set(true, forKey: "OudLive.acousticBackup.v4")
+        }
         if let stored = UserDefaults.standard.dictionary(forKey: "OudLive.rhythm.v1"),
            let id = stored["id"] as? Double, id.isFinite, id >= 0, id < Double(LiveRhythm.all.count),
            let tempo = stored["tempo"] as? Double, tempo.isFinite,
@@ -227,7 +233,7 @@ final class AudioModel: ObservableObject {
            let sounds = try? JSONDecoder().decode([NamedSound].self, from: data) {
             namedSounds = sounds.filter { $0.settings.valid }
         }
-        mode = saved.mode; settings = mode == .oud ? saved.oud : saved.voice
+        mode = .oud; settings = saved.oud
         // Do not restore mute/bypass implicitly; the engine is always stopped on launch.
         settings[.mute] = 0; settings[.bypass] = 0; stableBuffer = saved.stableBuffer
         apply(); refreshRecordings()
@@ -284,7 +290,14 @@ final class AudioModel: ObservableObject {
         (session.currentRoute.inputs + session.currentRoute.outputs).map(\.uid).joined(separator: "|") + "|\(session.sampleRate)"
     }
     func value(_ parameter: Parameter) -> Double { parameter == .bypass ? settings.effective(parameter) : settings[parameter] }
-    func boostInput() { set(.input, min(30, value(.input) + 6)) }
+    func setLiveLatency(_ enabled: Bool) {
+        guard !recording && !recordingPreparing && !recordingFinishing else { return }
+        let wasRunning = running || starting
+        if wasRunning { stop() }
+        settings[.live] = enabled ? 1 : 0; apply(); save()
+        if wasRunning { toggle() }
+    }
+    func boostInput() { set(.input, min(24, value(.input) + 6)) }
     func tapTempo() {
         let now = Date()
         if let previous = lastTap {
@@ -309,17 +322,16 @@ final class AudioModel: ObservableObject {
     func set(_ parameter: Parameter, _ value: Double) {
         let leavingRaw = settings.unprocessed && ![Parameter.input, .output, .recordGain, .mute].contains(parameter)
         if leavingRaw {
-            settings.unprocessed = false; settings[.bypass] = 0; settings.preset = "مخصص"
+            settings.unprocessed = false; settings[.bypass] = 0
             for effect in Effect.allCases where effect.parameters.contains(parameter) { settings.disabledEffects.remove(effect) }
         }
         settings[parameter] = value
-        if parameter != .mute && parameter != .bypass && parameter != .output && parameter != .input && parameter != .recordGain { settings.preset = "مخصص" }
         if leavingRaw { apply() } else { bridge.setParameter(parameter.rawValue, value: Float(settings.effective(parameter))) }; save()
     }
     func setEnabled(_ effect: Effect, _ enabled: Bool) {
         if enabled { settings.unprocessed = false; settings[.bypass] = 0; settings.disabledEffects.remove(effect) }
         else { settings.disabledEffects.insert(effect) }
-        settings.preset = "مخصص"; apply(); save()
+        apply(); save()
     }
     func saveSound(_ name: String) {
         let trimmed = String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(40))
@@ -329,7 +341,7 @@ final class AudioModel: ObservableObject {
     }
     func loadSound(_ sound: NamedSound) {
         let input = settings[.input], output = settings[.output], mute = settings[.mute], recordGain = settings[.recordGain]
-        save(); mode = sound.mode; settings = sound.settings; settings.preset = sound.name
+        save(); mode = .oud; settings = sound.settings
         settings[.input] = input; settings[.output] = output; settings[.mute] = mute; settings[.bypass] = 0
         settings[.recordGain] = recordGain
         apply(); save()
@@ -351,11 +363,7 @@ final class AudioModel: ObservableObject {
         loadSound(NamedSound(name: preset.name, mode: preset.isUnprocessed ? mode : .oud, settings: preset.settings(preserving: settings)))
     }
     func choosePreset(_ name: String) {
-        let input = settings[.input], output = settings[.output], mute = settings[.mute], recordGain = settings[.recordGain]
-        settings = .preset(name, mode: mode)
-        settings[.input] = input; settings[.output] = output; settings[.mute] = mute
-        settings[.recordGain] = recordGain
-        apply(); save()
+        if let preset = RecordingPreset.all.first(where: { $0.name == name }) { chooseRecordingPreset(preset) }
     }
     func chooseMode(_ newMode: SoundMode) {
         guard newMode != mode else { return }
@@ -366,7 +374,7 @@ final class AudioModel: ObservableObject {
         apply(); save()
     }
     private func apply() {
-        for p in Parameter.allCases { bridge.setParameter(p.rawValue, value: Float(settings.effective(p))) }
+        bridge.setParameters(Parameter.allCases.map { NSNumber(value: settings.effective($0)) })
     }
     private func save() {
         if mode == .oud { saved.oud = settings } else { saved.voice = settings }
@@ -395,7 +403,7 @@ final class AudioModel: ObservableObject {
             let options: AVAudioSession.CategoryOptions = usesBluetoothMic ? [.allowBluetooth] : [.allowBluetoothA2DP]
             try session.setCategory(.playAndRecord, mode: usesBluetoothMic ? .default : .measurement, options: options)
             try session.setPreferredSampleRate(48000)
-            try session.setPreferredIOBufferDuration((stableBuffer ? 256.0 : 128.0) / 48000.0)
+            try session.setPreferredIOBufferDuration((settings[.live] > 0.5 ? 128.0 : (stableBuffer ? 512.0 : 256.0)) / 48000.0)
             try session.setActive(true)
             if usesBluetoothMic {
                 for _ in 0..<20 {

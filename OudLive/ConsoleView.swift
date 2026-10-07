@@ -27,6 +27,7 @@ struct ConsoleView: View {
                     header(wide: wide)
                     if !wide { recordBar }
                     listeningPanel(wide: wide)
+                    LiveLatencyControl(audio: audio)
                     RhythmLauncher(audio: audio)
                     if wide {
                         HStack(alignment: .top, spacing: 12) {
@@ -83,7 +84,7 @@ struct ConsoleView: View {
         .task {
             #if DEBUG
             let arguments = ProcessInfo.processInfo.arguments
-            if arguments.contains("--console-presets") { audio.chooseRecordingPreset(RecordingPreset.all[0]) }
+            if arguments.contains("--console-presets") { audio.chooseRecordingPreset(RecordingPreset.all[3]) }
             do {
                 try? await Task.sleep(nanoseconds: 300_000_000)
                 if let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first {
@@ -268,9 +269,9 @@ struct ConsoleView: View {
                         equalizer.frame(width: 232)
                         effectCard(.reverb, parameter: .reverb, palette: .violet).frame(width: 145)
                         effectCard(.delay, parameter: .delay, palette: .emerald).frame(width: 145)
-                        effectCard(.motion, parameter: .modulation, palette: .sapphire).frame(width: 145)
+                        effectCard(.space, parameter: .width, palette: .sapphire).frame(width: 145)
                         effectCard(.compressor, parameter: .compression, palette: .copper).frame(width: 145)
-                        effectCard(.doubler, parameter: .doubler, palette: .rose).frame(width: 145)
+                        effectCard(.noise, parameter: .noise, palette: .rose).frame(width: 145)
                         outputPanel.frame(width: 155)
                     }.environment(\.layoutDirection, .leftToRight)
                 }
@@ -279,9 +280,9 @@ struct ConsoleView: View {
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                     effectCard(.reverb, parameter: .reverb, palette: .violet)
                     effectCard(.delay, parameter: .delay, palette: .emerald)
-                    effectCard(.motion, parameter: .modulation, palette: .sapphire)
+                    effectCard(.space, parameter: .width, palette: .sapphire)
                     effectCard(.compressor, parameter: .compression, palette: .copper)
-                    effectCard(.doubler, parameter: .doubler, palette: .rose)
+                    effectCard(.noise, parameter: .noise, palette: .rose)
                     outputPanel
                 }
             }
@@ -327,7 +328,7 @@ struct ConsoleView: View {
         }.modifier(ConsolePanel(padding: 12)).environment(\.layoutDirection, .rightToLeft)
     }
     private func effectLabel(_ effect: Effect) -> String {
-        switch effect { case .reverb: return "الريفيرب"; case .delay: return "الديلي"; case .motion: return "الكورس"; case .compressor: return "الكمبريسر"; case .doubler: return "المضاعفة"; case .eq: return "موازن الصوت" }
+        switch effect { case .reverb: return "الريفيرب"; case .delay: return "الديلي"; case .space: return "المكان"; case .compressor: return "الكمبريسر"; case .noise: return "الهدوء"; case .eq: return "موازن الصوت" }
     }
     private func panel(_ item: ConsoleSheet) -> some View {
         NavigationStack {
