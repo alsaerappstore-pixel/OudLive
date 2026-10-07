@@ -13,18 +13,18 @@ enum Parameter: Int, CaseIterable {
         switch self {
         case .input: return -24...24
         case .output: return -60...0
-        case .low: return -3...3
+        case .low: return -9...9
         case .mid: return -3...3
         case .high: return -3...3
         case .compression: return 0...1
-        case .reverb: return 0...0.3
+        case .reverb: return 0...1
         case .delay: return 0...0.15
         case .delayTime: return 40...5000
         case .feedback: return 0...0.35
         case .roomSize: return 0...1
         case .width: return 0...0.65
         case .early: return 0...0.7
-        case .noise: return 0...0.5
+        case .noise: return 0...1
         case .bypass: return 0...1
         case .mute: return 0...1
         case .decay: return 0.5...5
@@ -69,18 +69,18 @@ enum Parameter: Int, CaseIterable {
         switch self {
         case .input: return "يرفع الميكروفون رقميًا مع الضجيج؛ قرّب المايك أولًا."
         case .output: return "مستوى المراقبة فقط، مستقل عن الملف."
-        case .low: return "دفء معتدل يحافظ على جسم العود."
+        case .low: return "رفع أو خفض منطقة جسم العود حول 230 Hz حتى ±9 dB. اخفضه لتخفيف الكتمة أو ارفعه لدفء أوضح."
         case .mid: return "وضوح ضربة الريشة دون تغيير الطبقة."
         case .high: return "تحكم لطيف بالحدة؛ توجد موازنة تلقائية محدودة عند زيادة الخشونة."
-        case .compression: return "ضغط خفيف بنسبة 1.5–2.5:1، وحد أقصى 4 dB للتخفيض قبل حماية القمم."
-        case .reverb: return "رنين طبيعي خلف الصوت الأصلي، بحد مزج محافظ."
+        case .compression: return "من ضغط لطيف إلى ضغط واضح: تنخفض العتبة وتزيد النسبة حتى 8:1، وبحد تخفيض 24 dB. الضغط القوي قد يخفض الجهارة ويغيّر إحساس الريشة."
+        case .reverb: return "من غرفة خفيفة إلى صدى بارز؛ النطاق العلوي يرفع ذيل الصدى بوضوح. يبقى فعالًا في وضع الاستجابة الحية."
         case .delay: return "تكرارات خافتة تُرشح في كل دورة لتصبح أدفأ وأغمق."
         case .delayTime: return "زمن التكرار؛ لا يؤخر المسار الأصلي. يدعم داخليًا حتى خمس ثوانٍ."
         case .feedback: return "تكرار محدود لا يتراكم فوق الريشة."
         case .roomSize: return "يضبط انتشار الانعكاسات مع بقاء العود في المقدمة."
         case .width: return "يوسع الرنين فقط؛ أصل العود في الوسط، دون تغيير طبقة أو كورس."
         case .early: return "انعكاسات أولية خافتة تحدد خشبية المكان أو صلابته."
-        case .noise: return "تمدد ناعم محدود في المقاطع الهادئة، دون بوابة تقطع ذيل النغمة."
+        case .noise: return "بوابة ضجيج متدرجة؛ ترفع الحساسية وقوة الخفض حتى 48 dB بين الجمل. رفعها كثيرًا قد يقص ذيل النغمات الهادئة؛ لا تعزل ضجيجًا يصاحب العزف باستمرار."
         case .bypass: return "مقارنة مؤقتة بصوت الميكروفون."
         case .mute: return "لا يكتم التسجيل."
         case .decay: return "المدى الطبيعي في الأوضاع 0.6–3.2 ثانية؛ الحد الداخلي خمس ثوانٍ."
@@ -214,4 +214,3 @@ struct SoundBank: Codable {
         guard slots.indices.contains(index) else { return }; slots[index] = nil
     }
 }
-

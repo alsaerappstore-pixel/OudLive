@@ -22,7 +22,7 @@ int main(){
             for(int i=0;i<128;++i)x[i]=.1f*std::sin(2*oud::pi*226.4465f*(frame+i)/rate);
             rendering=true;d.process(x.data(),l.data(),r.data(),128,recL.data(),recR.data());rendering=false;
             for(int i=0;i<128;++i){assert(std::isfinite(recL[i])&&std::abs(recL[i])<.94f);energy+=recL[i]*recL[i];maxStep=std::max(maxStep,std::abs(recL[i]-previous));previous=recL[i];}
-            assert(d.gainReduction.load()<=4.001f);
+            assert(d.gainReduction.load()<=24.001f);
         }
         const float expectedSineStep=.4f*std::sin(oud::pi*226.4465f/rate)+.005f;
         assert(energy>10&&maxStep<expectedSineStep&&allocations==0);

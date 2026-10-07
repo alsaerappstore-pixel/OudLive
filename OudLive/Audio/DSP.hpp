@@ -10,8 +10,8 @@ constexpr float pi=3.14159265358979323846f;
 enum Param:int { Input,Output,Low,Mid,High,Compression,Reverb,Delay,DelayTime,Feedback,RoomSize,Width,Early,Noise,Bypass,Mute,Decay,Predelay,Tone,Makeup,Intensity,RecordGain,Live,Trim,Count };
 using Controls=std::array<float,Count>;
 constexpr Controls defaults={6,-9,1,-.2f,-.6f,.2f,.13f,0,250,0,.35f,.25f,.4f,.15f,0,0,1.2f,24,.25f,.35f,1,0,1,-.4f};
-constexpr Controls minimum={-24,-60,-3,-3,-3,0,0,0,40,0,0,0,0,0,0,0,.5f,10,0,0,0,-12,0,-3};
-constexpr Controls maximum={24,0,3,3,3,1,.3f,.15f,5000,.35f,1,.65f,.7f,.5f,1,1,5,40,1,2,1,18,1,3};
+constexpr Controls minimum={-24,-60,-9,-3,-3,0,0,0,40,0,0,0,0,0,0,0,.5f,10,0,0,0,-12,0,-3};
+constexpr Controls maximum={24,0,9,3,3,1,1,.15f,5000,.35f,1,.65f,.7f,1,1,1,5,40,1,2,1,18,1,3};
 inline float clamp(float x,float lo,float hi){return std::max(lo,std::min(hi,x));}
 inline float db(float x){return std::pow(10.f,x/20);}
 static_assert(std::atomic<float>::is_always_lock_free,"Audio requires lock-free controls");
@@ -53,7 +53,7 @@ struct Diffuser {
 };
 // Fixed taps, no modulation, pitch trackers, detuning or waveshapers.
 class AcousticState {
-    Controls p=defaults;float rate=48000,env=0,noiseEnv=0,noiseGain=1,attack=0,release=0,slow=0;
+    Controls p=defaults;float rate=48000,env=0,noiseEnv=0,noiseGain=1,noiseHold=0,attack=0,release=0,slow=0;
     float bodyEnergy=0,edgeEnergy=0,totalEnergy=0,bodyCut=0,edgeCut=0;unsigned counter=0;
     HighPass rumble,reverbLow,delayLow;
     LowPass reverbHigh,delayHigh,bodyLow,bodyHigh,edgeLow,edgeHigh;
@@ -63,7 +63,7 @@ class AcousticState {
 public:
     float reduction=0;
     void prepare(float sampleRate,const Controls &controls){
-        rate=sampleRate;env=noiseEnv=bodyEnergy=edgeEnergy=totalEnergy=bodyCut=edgeCut=0;noiseGain=1;counter=0;
+        rate=sampleRate;env=noiseEnv=bodyEnergy=edgeEnergy=totalEnergy=bodyCut=edgeCut=0;noiseGain=1;noiseHold=0;counter=0;
         rumble={};reverbLow={};delayLow={};reverbHigh={};delayHigh={};bodyLow={};bodyHigh={};edgeLow={};edgeHigh={};eq={};adaptiveBody={};adaptiveEdge={};
         attack=std::exp(-1/(rate*.02f));release=std::exp(-1/(rate*.18f));slow=1-std::exp(-1/(rate*.5f));
         rumble.configure(55,rate);bodyLow.configure(500,rate);bodyHigh.configure(250,rate);edgeLow.configure(5000,rate);edgeHigh.configure(3000,rate);
@@ -95,12 +95,22 @@ public:
         }
         for(auto &filter:eq)x=filter.tick(x);x=adaptiveEdge.tick(adaptiveBody.tick(x));
         float amplitude=std::abs(x),coef=amplitude>env?attack:release;env=coef*env+(1-coef)*amplitude;
-        const float over=20*std::log10(std::max(env,1e-9f))+20;
+        const float compressionDepth=clamp((p[Compression]-.35f)/.65f,0,1);
+        const float threshold=-20-22*compressionDepth,ratio=1.5f+p[Compression]+5.5f*compressionDepth;
+        const float over=20*std::log10(std::max(env,1e-9f))-threshold;
         float knee=over<=-3?0:(over>=3?over:(over+3)*(over+3)/12);
-        reduction=p[Compression]>.001f?std::min(4.f,knee*(1-1/(1.5f+p[Compression]))):0;x*=db(-reduction+p[Makeup]);
-        noiseEnv+=(1-std::exp(-1/(rate*.08f)))*(amplitude-noiseEnv);
+        reduction=p[Compression]>.001f?std::min(4.f+20*compressionDepth,knee*(1-1/ratio)):0;x*=db(-reduction+p[Makeup]);
+        const float noiseDepth=clamp((p[Noise]-.2f)/.8f,0,1);
+        const float detectorTime=amplitude>noiseEnv?.003f:.1f;
+        noiseEnv+=(1-std::exp(-1/(rate*detectorTime)))*(amplitude-noiseEnv);
         const float quiet=clamp((-60-20*std::log10(std::max(noiseEnv,1e-9f)))/20,0,1);
-        const float desiredNoise=1-.4f*p[Noise]*quiet,noiseTime=desiredNoise>noiseGain?.025f:1.5f;
+        const float noiseDB=20*std::log10(std::max(noiseEnv,1e-9f)),gateThreshold=-68+42*noiseDepth;
+        if(noiseDB>gateThreshold)noiseHold=rate*.06f;else noiseHold=std::max(0.f,noiseHold-1);
+        const float below=gateThreshold-noiseDB;
+        const float gateKnee=below<=-3?0:(below>=3?below:(below+3)*(below+3)/12);
+        const float gateReduction=noiseHold>0?0:std::min(48*noiseDepth,gateKnee*7*noiseDepth);
+        const float desiredNoise=std::max(db(-std::max(2.f,48*noiseDepth)),(1-.4f*p[Noise]*quiet)*db(-gateReduction));
+        const float noiseTime=desiredNoise>noiseGain?.003f:(noiseDepth>0?.18f:1.5f);
         noiseGain+=(1-std::exp(-1/(rate*noiseTime)))*(desiredNoise-noiseGain);x*=noiseGain;
         const float delayTap=echo.read(p[DelayTime]*rate*.001f),warmEcho=delayHigh.tick(delayLow.tick(delayTap));echo.push(x+warmEcho*p[Feedback]);
         const float pd=p[Predelay]*rate*.001f,roomInput=pre.read(pd);
@@ -110,8 +120,9 @@ public:
         rv[0]=rv[0]*1.2f+earlyL*p[Early];rv[1]=rv[1]*1.2f+earlyR*p[Early];
         float mid=.5f*(rv[0]+rv[1]),side=.5f*(rv[0]-rv[1]);const bool live=p[Live]>.5f;
         const float width=live?std::min(p[Width],.25f):p[Width],echoAmount=live?0:p[Delay];
-        // The direct oud remains centred and undelayed. Width affects only ambience.
-        return {(x+p[Intensity]*((mid+side*width)*p[Reverb]+warmEcho*echoAmount))*db(p[Trim]),(x+p[Intensity]*((mid-side*width)*p[Reverb]+warmEcho*echoAmount))*db(p[Trim])};
+        const float roomGain=p[Reverb]*(1+2*clamp((p[Reverb]-.3f)/.7f,0,1));
+        // Direct oud remains centred; extended upper fader range provides audible room tails.
+        return {(x+p[Intensity]*((mid+side*width)*roomGain+warmEcho*echoAmount))*db(p[Trim]),(x+p[Intensity]*((mid-side*width)*roomGain+warmEcho*echoAmount))*db(p[Trim])};
     }
 };
 class DSP {

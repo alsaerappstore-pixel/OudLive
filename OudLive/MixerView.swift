@@ -3,24 +3,25 @@ import SwiftUI
 @MainActor
 struct MixerView: View {
     @ObservedObject var audio: AudioModel
-    private let channels: [Parameter] = [.output, .input, .reverb, .noise, .compression]
+    private let channels: [Parameter] = [.output, .input, .reverb, .noise, .compression, .low]
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Label("مكسر الصوت", systemImage: "slider.vertical.3").font(.headline)
                 Spacer()
-                Text("اسحب لأعلى أو لأسفل").font(.caption2)
+                Text("٦ قنوات • اسحب للتعديل").font(.caption2)
             }.foregroundStyle(Color(white: 0.12))
             GeometryReader { bounds in
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 3) {
                         ForEach(channels, id: \.rawValue) { parameter in
                             MixerStrip(audio: audio, parameter: parameter)
-                                .frame(width: max(62, (bounds.size.width - 12) / 5))
+                                .frame(width: max(54, (bounds.size.width - 15) / 6))
                         }
                     }
                 }
             }.frame(height: 304)
+            Text("الصدى والتشويش: ٠–١٠٠٪. الجهير: ±٩ dB؛ الصفر محايد. اسحب القنوات أفقيًا إذا ضاقت الشاشة.").font(.caption2).foregroundStyle(Color(white: 0.2)).fixedSize(horizontal: false, vertical: true)
             Text("لمبات المايك والصوت تقيس الإشارة الحية؛ لمبات المؤثرات تبين مقدارها. الأحمر يعني مستوى مرتفعًا. الصوت يضبط السماعة؛ مستوى التسجيل مستقل في صفحة التسجيل.")
                 .font(.caption2).foregroundStyle(Color(white: 0.24)).fixedSize(horizontal: false, vertical: true)
         }
@@ -37,10 +38,10 @@ private struct MixerStrip: View {
     @ObservedObject var audio: AudioModel
     let parameter: Parameter
     private var effect: Effect? {
-        switch parameter { case .reverb: return .reverb; case .noise: return .noise; case .compression: return .compressor; default: return nil }
+        switch parameter { case .reverb: return .reverb; case .noise: return .noise; case .compression: return .compressor; case .low: return .eq; default: return nil }
     }
     private var title: String {
-        switch parameter { case .output: return "الصوت"; case .input: return "التقاط\nالمايك"; case .reverb: return "الصدى"; case .noise: return "خفض\nالتشويش"; default: return "ضاغط\nالصوت" }
+        switch parameter { case .output: return "الصوت"; case .input: return "التقاط\nالمايك"; case .reverb: return "الصدى"; case .noise: return "خفض\nالتشويش"; case .low: return "توازن\nالجهير"; default: return "ضاغط\nالصوت" }
     }
     private var amount: Double { (audio.value(parameter) - parameter.range.lowerBound) / (parameter.range.upperBound - parameter.range.lowerBound) }
     private var enabled: Bool {
@@ -54,10 +55,12 @@ private struct MixerStrip: View {
             let peak = Double(parameter == .input ? audio.inputLevel : audio.outputLevel)
             return max(0, min(1, (20 * log10(max(peak, 0.001)) + 60) / 60))
         }
+        if parameter == .low { return abs(audio.value(.low)) / 9 }
         return max(0, min(1, amount))
     }
     private func adjust(_ value: Double) {
         if let effect, !enabled { audio.setEnabled(effect, true) }
+        if parameter == .reverb && audio.value(.intensity) < 1 { audio.set(.intensity, 1) }
         audio.set(parameter, value)
     }
     var body: some View {
@@ -95,14 +98,17 @@ private struct MixerStrip: View {
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(title.replacingOccurrences(of: "\n", with: " "))
                     .accessibilityValue(parameter.text(audio.value(parameter)))
-                    .accessibilityHint("اسحب عموديًا لتغيير المستوى")
+                    .accessibilityHint(parameter.explanation + " اسحب عموديًا لتغيير المستوى")
                     .accessibilityAdjustableAction { direction in
                         let step = (parameter.range.upperBound - parameter.range.lowerBound) / 40
                         adjust(audio.value(parameter) + (direction == .increment ? step : -step))
                     }.accessibilityIdentifier("mixer-fader-\(parameter.rawValue)")
                 MixerLamps(level: lampLevel).frame(width: 7, height: 174).accessibilityHidden(true)
             }.environment(\.layoutDirection, .leftToRight)
-            if let effect {
+            if parameter == .low {
+                Button("محايد") { adjust(0) }.font(.system(size: 10, weight: .bold)).frame(maxWidth: .infinity, minHeight: 32)
+                    .background(Color.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 5)).accessibilityLabel("إعادة توازن الجهير إلى صفر")
+            } else if let effect {
                 Button { audio.setEnabled(effect, !enabled) } label: {
                     Image(systemName: "power").font(.system(size: 14, weight: .bold))
                         .foregroundStyle(enabled ? Color.green.opacity(0.85) : Color.gray)
