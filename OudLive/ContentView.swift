@@ -25,6 +25,7 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 12) {
                 header
                 monitor
+                RhythmLauncher(audio: audio)
                 Picker("صفحة التحكم", selection: $page) {
                     Text("العزف").tag(0); Text("المؤثرات").tag(1); Text("التوصيل").tag(2); Text("التسجيل").tag(3)
                 }.pickerStyle(.segmented)

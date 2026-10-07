@@ -2,6 +2,7 @@
 #import <AudioToolbox/AudioToolbox.h>
 #import <AVFoundation/AVFoundation.h>
 #include "DSP.hpp"
+#include "RhythmEngine.hpp"
 #include <memory>
 #include <cstring>
 #include <mach/mach_time.h>
@@ -10,6 +11,8 @@
 struct AudioState {
     AudioUnit unit=nullptr;
     oud::DSP dsp;
+    oud::RhythmEngine rhythm;
+    std::vector<float> rhythmLeft,rhythmRight;
     std::vector<float> input;
     std::vector<float> recordLeft,recordRight,monitorLeft,monitorRight;
     UInt32 outputChannels=2;
@@ -42,8 +45,9 @@ static OSStatus render(void *context, AudioUnitRenderActionFlags *flags,
     *flags &= ~kAudioUnitRenderAction_OutputIsSilence;
     float *left=state->outputChannels==1 ? state->monitorLeft.data() : static_cast<float *>(out->mBuffers[0].mData);
     float *right=state->outputChannels==1 ? state->monitorRight.data() : static_cast<float *>(out->mBuffers[1].mData);
+    state->rhythm.render(state->rhythmLeft.data(),state->rhythmRight.data(),frames);
     state->dsp.process(static_cast<float *>(input.mBuffers[0].mData),left,right,frames,
-                       state->recordLeft.data(),state->recordRight.data());
+                       state->recordLeft.data(),state->recordRight.data(),state->rhythmLeft.data(),state->rhythmRight.data());
     if(state->outputChannels==1) {
         auto *mono=static_cast<float *>(out->mBuffers[0].mData);
         for(UInt32 i=0;i<frames;++i) mono[i]=.5f*(left[i]+right[i]);
@@ -67,6 +71,8 @@ static OSStatus render(void *context, AudioUnitRenderActionFlags *flags,
 - (instancetype)init {
     if((self=[super init])) {
         _state=std::make_unique<AudioState>();
+        NSString *bank=[[NSBundle mainBundle] pathForResource:@"RhythmBank" ofType:nil];
+        if(bank) _state->rhythm.loadBank(bank.fileSystemRepresentation);
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(routeChanged:)
             name:AVAudioSessionRouteChangeNotification object:nil];
     }
@@ -108,6 +114,8 @@ static OSStatus render(void *context, AudioUnitRenderActionFlags *flags,
             _state->input.assign(maximum,0); _state->dsp.prepare(float(sampleRate)); _state->error.store(0);
             _state->monitorLeft.assign(maximum,0); _state->monitorRight.assign(maximum,0);
             _state->recordLeft.assign(maximum,0); _state->recordRight.assign(maximum,0);
+            _state->rhythmLeft.assign(maximum,0); _state->rhythmRight.assign(maximum,0);
+            _state->rhythm.prepare(sampleRate);
             check(AudioOutputUnitStart(_state->unit));
         }
     }
@@ -118,6 +126,12 @@ static OSStatus render(void *context, AudioUnitRenderActionFlags *flags,
         return NO;
     }
     return YES;
+}
+- (BOOL)rhythmReady { return _state->rhythm.ready(); }
+- (float)rhythmPosition { return _state->rhythm.position(); }
+- (void)setRhythm:(NSInteger)index playing:(BOOL)playing tempo:(float)tempo volume:(float)volume {
+    _state->rhythm.select((int)index); _state->rhythm.setTempo(tempo);
+    _state->rhythm.setVolume(volume); _state->rhythm.setPlaying(playing);
 }
 - (void)stop {
     if(_state && _state->unit) {

@@ -22,6 +22,11 @@ jobs:
           mkdir -p build
           clang++ -std=c++17 -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer Tests/dsp_tests.cpp -o build/dsp-tests
           build/dsp-tests | tee build/dsp-test-results.txt
+      - name: Test recorded rhythm bank, tempo and recording mix
+        run: |
+          python3 scripts/generate-rhythm-patterns.py --check
+          clang++ -std=c++17 -O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer Tests/rhythm_tests.cpp -o build/rhythm-tests
+          build/rhythm-tests | tee build/rhythm-test-results.txt
       - name: Build and package arm64 iPhone app
         run: bash scripts/build-ipa.sh
       - name: Verify processed audio recording
@@ -61,6 +66,7 @@ jobs:
             build/recording-test-results.txt
             build/export-test-results.txt
             build/preset-test-results.txt
+            build/rhythm-test-results.txt
             build/Build-*.xcresult
           if-no-files-found: ignore
           retention-days: 14

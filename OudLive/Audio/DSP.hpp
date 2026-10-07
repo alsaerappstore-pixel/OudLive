@@ -101,7 +101,7 @@ public:
         }
         inputPeak.store(0); outputPeak.store(0); gainReduction.store(0); recordPeak.store(0); recordReduction.store(0);
     }
-    void process(const float *in,float *left,float *right,size_t frames,float *recordLeft=nullptr,float *recordRight=nullptr) {
+    void process(const float *in,float *left,float *right,size_t frames,float *recordLeft=nullptr,float *recordRight=nullptr,const float *backingLeft=nullptr,const float *backingRight=nullptr) {
         std::array<float,Count> requested;
         for(int p=0;p<Count;++p) requested[p]=get(p);
         for(auto &channel:combs) for(auto &comb:channel)
@@ -165,9 +165,12 @@ public:
             mixed[1]=x+strength*((mr-.35f*x)*current[Modulation]+dr*current[Doubler]+echoSampleR*current[Delay]+rv[1]*current[Reverb]);
             // Recording splits BEFORE monitor gain and monitor mute. Its own
             // linked limiter protects the file without affecting headphone level.
+            float backing[2]={backingLeft?backingLeft[i]:0,backingRight?backingRight[i]:0};
+            float combined[2];
+            for(int c=0;c<2;++c) combined[c]=mixed[c]*(1-current[Bypass])+dry*current[Bypass]+backing[c];
             float rec[2];
             for(int c=0;c<2;++c) {
-                rec[c]=(mixed[c]*(1-current[Bypass])+dry*current[Bypass])*db(current[RecordGain]);
+                rec[c]=combined[c]*db(current[RecordGain]);
                 if(!std::isfinite(rec[c])) rec[c]=0;
             }
             float recMax=std::max(std::abs(rec[0]),std::abs(rec[1]));
@@ -184,7 +187,7 @@ public:
             float gain=db(current[Output])*(1-current[Mute]);
             float y[2];
             for(int c=0;c<2;++c) {
-                y[c]=(mixed[c]*(1-current[Bypass])+dry*current[Bypass])*gain;
+                y[c]=combined[c]*gain;
                 if(!std::isfinite(y[c])) y[c]=0;
             }
             // Stereo-linked, zero-lookahead peak limiter: immediate reduction,

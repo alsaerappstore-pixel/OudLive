@@ -12,6 +12,7 @@ private enum ConsoleSheet: Identifiable {
 struct ConsoleView: View {
     @ObservedObject var audio: AudioModel
     @State private var video = true
+    @State private var presetsRevealed = false
     @State private var sheet: ConsoleSheet?
     @AppStorage("OudLive.console") private var console = true
     private let blue = Color(red: 0.15, green: 0.61, blue: 1)
@@ -26,7 +27,7 @@ struct ConsoleView: View {
                     header(wide: wide)
                     if !wide { recordBar }
                     listeningPanel(wide: wide)
-                    QuickPresetGrid(audio: audio).modifier(ConsolePanel(padding: 10)).id("console-presets")
+                    RhythmLauncher(audio: audio)
                     if wide {
                         HStack(alignment: .top, spacing: 12) {
                             inputPanel(compact: false).frame(width: 108)
@@ -38,7 +39,9 @@ struct ConsoleView: View {
                         inputPanel(compact: true)
                         cameraPanel(height: 212)
                     }
-                    effectRack(wide: wide).id("console-rack")
+                    EffectsPresetDrawer(revealed: $presetsRevealed,
+                        cover: effectRack(wide: wide), back: QuickPresetGrid(audio: audio))
+                        .id("console-rack")
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
                             Label("خاناتي المحفوظة", systemImage: "square.grid.2x2").font(.headline)
@@ -59,7 +62,8 @@ struct ConsoleView: View {
                 #if DEBUG
                 if ProcessInfo.processInfo.arguments.contains("--console-presets") {
                     try? await Task.sleep(nanoseconds: 700_000_000)
-                    scroll.scrollTo("console-presets", anchor: .top)
+                    presetsRevealed = true
+                    scroll.scrollTo("console-rack", anchor: .top)
                 }
                 if ProcessInfo.processInfo.arguments.contains("--console-rack") {
                     try? await Task.sleep(nanoseconds: 700_000_000)
