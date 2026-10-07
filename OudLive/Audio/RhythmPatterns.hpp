@@ -69,4 +69,3 @@ inline constexpr RhythmPattern rhythmPatterns[] = {
 };
 inline constexpr int rhythmCount=sizeof(rhythmPatterns)/sizeof(rhythmPatterns[0]);
 }
-
