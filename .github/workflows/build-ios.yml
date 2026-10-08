@@ -28,6 +28,8 @@ jobs:
           python3 scripts/verify-mixer.py
           clang++ -std=c++17 -O1 -g -fsanitize=address,undefined Tests/loop_tests.cpp -o build/loop-tests
           build/loop-tests | tee build/loop-test-results.txt
+          swiftc OudLive/LoopLibrary.swift Tests/LoopLibraryTests/main.swift -o build/loop-library-tests
+          build/loop-library-tests | tee build/loop-library-test-results.txt
       - name: Build and package arm64 iPhone app
         # Require measured audible differences before packaging the app.
         run: |

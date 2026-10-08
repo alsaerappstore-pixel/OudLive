@@ -26,5 +26,18 @@ int main(){
     player.playing=false;player.render(l.data(),r.data(),l.size(),48000);
     assert(std::abs(l.back())<1e-6);
     player.replace(nullptr);player.render(l.data(),r.data(),l.size(),48000);for(auto v:l)assert(v==0);
+    // Channel faders must affect live preview and the file in equal proportions.
+    for(float amount:{0.f,.25f,1.f,2.f}) {
+        oud::DSP mix;mix.set(oud::Input,0);mix.set(oud::Output,0);mix.set(oud::Bypass,1);mix.set(oud::RecordGain,6);mix.setOudVolume(amount);mix.prepare(48000);
+        std::fill(mic.begin(),mic.end(),.04f);std::fill(l.begin(),l.end(),.025f);std::fill(r.begin(),r.end(),.025f);
+        mix.process(mic.data(),ml.data(),mr.data(),mic.size(),rl.data(),rr.data(),true,l.data(),r.data(),true);
+        const float expected=.04f*std::pow(10.f,6.f/20.f)*amount+.025f;
+        assert(std::abs(rl.back()-expected)<1e-5 && std::abs(ml.back()-expected)<1e-4);
+        mix.process(mic.data(),ml.data(),mr.data(),mic.size(),rl.data(),rr.data(),false,l.data(),r.data(),false);
+        assert(std::abs(rl.back()-(expected-.025f))<1e-5 && std::abs(ml.back()-.025f)<1e-4);
+        mix.setOudVolume(0);mix.process(mic.data(),ml.data(),mr.data(),mic.size(),rl.data(),rr.data(),true,l.data(),r.data(),true);
+        assert(std::abs(rl.back()-.025f)<1e-5);
+    }
+    std::cout<<"PASS independent oud/loop channel balance, matching live/file mix, true mute and listen-only exclusion\n";
     std::cout<<"PASS original PCM at 100%, looping, variable rate, live without mic monitoring, record inclusion/exclusion, final peak protection, stop and replace\n";
 }

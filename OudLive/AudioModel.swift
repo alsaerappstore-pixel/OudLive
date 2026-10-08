@@ -50,7 +50,8 @@ final class AudioModel: ObservableObject {
     @Published private(set) var selectedLoop: UserLoop?
     @Published private(set) var loopPlaying = false
     @Published var loopSpeed: Float = 1 { didSet { updateLoopControls() } }
-    @Published var loopVolume: Float = 0.65 { didSet { updateLoopControls() } }
+    @Published var loopVolume: Float = 0.65 { didSet { updateLoopControls(); UserDefaults.standard.set(loopVolume, forKey: "OudLive.loopVolume.v1") } }
+    @Published var oudVolume: Float = 1 { didSet { bridge.setOudVolume(oudVolume); UserDefaults.standard.set(oudVolume, forKey: "OudLive.oudVolume.v1") } }
     @Published var recordLoop = true { didSet { updateLoopControls() } }
     private var recordingLoopChoice = true
     private func updateLoopControls() {
@@ -70,6 +71,12 @@ final class AudioModel: ObservableObject {
         guard selectedLoop != nil else { message = "اختر إيقاعًا من المكتبة أولًا."; return }
         loopPlaying.toggle(); bridge.setLoopPlaying(loopPlaying)
     }
+    func assignLoop(_ item: UserLoop?, to index: Int) { loopLibrary.assign(item, to: index) }
+    func deleteLoop(_ item: UserLoop) {
+        if selectedLoop?.id == item.id { loopPlaying = false; bridge.setLoopPlaying(false); selectedLoop = nil }
+        loopLibrary.delete(item)
+    }
+    func restoreLoops() { loopLibrary.restoreDeleted() }
     func renameLoop(_ item: UserLoop, name: String) {
         loopLibrary.rename(item, name: name)
     }
@@ -200,6 +207,9 @@ final class AudioModel: ObservableObject {
 
     @Published private(set) var soundBank = SoundBank()
     init() {
+        if let v = UserDefaults.standard.object(forKey: "OudLive.loopVolume.v1") as? NSNumber, v.floatValue.isFinite { loopVolume = min(1, max(0, v.floatValue)) }
+        if let v = UserDefaults.standard.object(forKey: "OudLive.oudVolume.v1") as? NSNumber, v.floatValue.isFinite { oudVolume = min(2, max(0, v.floatValue)) }
+        updateLoopControls(); bridge.setOudVolume(oudVolume)
         if !UserDefaults.standard.bool(forKey: "OudLive.acousticBackup.v4") {
             for key in ["OudLive.soundBank.v1", "OudLive.namedSounds.v1", "OudLive.favorite.v2", storageKey] {
                 if let data = UserDefaults.standard.data(forKey: key) { UserDefaults.standard.set(data, forKey: key + ".beforeAcoustic") }

@@ -148,6 +148,7 @@ static OSStatus render(void *context, AudioUnitRenderActionFlags *flags,
     for(auto &v:clip->right)if(!std::isfinite(v))v=0;
     _state->loop.replace(std::move(clip));return YES;
 }
+- (void)setOudVolume:(float)volume { _state->dsp.setOudVolume(volume); }
 - (void)setLoopPlaying:(BOOL)playing { _state->loop.playing.store(playing); }
 - (void)setLoopSpeed:(float)speed volume:(float)volume recordEnabled:(BOOL)enabled {
     _state->loop.speed.store(speed);_state->loop.volume.store(volume);_state->loop.recordEnabled.store(enabled);

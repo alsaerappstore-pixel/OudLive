@@ -127,12 +127,14 @@ public:
 };
 class DSP {
     std::array<std::atomic<float>,Count> target;std::atomic<unsigned> revision{0};
+    std::atomic<float> oudTarget{1}; float oudGain=1;
     Controls accepted=defaults,current=defaults,profile=defaults;std::array<AcousticState,2> cores;
     int active=0;bool fading=false;float fade=1,fadeStep=0,rate=48000,smoothing=0,limiterGain=1,recordLimiter=1,limiterRelease=0;
     static bool acousticDifference(const Controls &a,const Controls &b){for(int i=0;i<Count;++i)if(i!=Input&&i!=Output&&i!=RecordGain&&i!=Mute&&i!=Bypass&&std::abs(a[i]-b[i])>1e-5f)return true;return false;}
 public:
     std::atomic<float> inputPeak{0},outputPeak{0},gainReduction{0},recordPeak{0},recordReduction{0};
     DSP(){for(int i=0;i<Count;++i)target[i].store(defaults[i]);}
+    void setOudVolume(float value){if(std::isfinite(value))oudTarget.store(clamp(value,0,2));}
     void beginUpdate(){revision.fetch_add(1,std::memory_order_acq_rel);}
     void endUpdate(){revision.fetch_add(1,std::memory_order_release);}
     void set(int p,float value){if(p>=0&&p<Count&&std::isfinite(value))target[p].store(clamp(value,minimum[p],maximum[p]),std::memory_order_relaxed);}
@@ -140,6 +142,7 @@ public:
     void prepare(float sampleRate){
         rate=std::isfinite(sampleRate)?clamp(sampleRate,8000,192000):48000;for(int i=0;i<Count;++i)accepted[i]=current[i]=profile[i]=get(i);
         for(auto &core:cores)core.prepare(rate,profile);active=0;fading=false;fade=1;fadeStep=1/(rate*.05f);smoothing=1-std::exp(-1/(rate*.015f));
+        oudGain=oudTarget.load();
         current[Output]=-60;limiterGain=recordLimiter=1;limiterRelease=1-std::exp(-1/(rate*.1f));inputPeak=0;outputPeak=0;gainReduction=0;recordPeak=0;recordReduction=0;
     }
     void process(const float *in,float *left,float *right,size_t frames,float *recordLeft=nullptr,float *recordRight=nullptr,bool monitorMicrophone=true,const float *loopLeft=nullptr,const float *loopRight=nullptr,bool recordLoop=false){
@@ -148,6 +151,7 @@ public:
         // Full-state linear crossfade, two preallocated continuously warm paths.
         // No allocations/locks/clears on the render thread; latest change is coalesced.
         if(!fading&&acousticDifference(accepted,profile)){cores[1-active].configure(accepted);profile=accepted;fading=true;fade=0;}
+        const float desiredOud=oudTarget.load();
         float inPeak=0,outPeak=0,recPeak=0,gr=0,recGR=0;
         for(size_t i=0;i<frames;++i){
             for(int p:{Input,Output,RecordGain,Mute,Bypass})current[p]+=smoothing*(accepted[p]-current[p]);
@@ -157,13 +161,16 @@ public:
             gr=std::max(gr,cores[active].reduction*(1-mix)+cores[1-active].reduction*mix);
             if(fading){fade+=fadeStep;if(fade>=1){active=1-active;fading=false;fade=1;}}
             float loop[2]={loopLeft&&std::isfinite(loopLeft[i])?loopLeft[i]:0,loopRight&&std::isfinite(loopRight[i])?loopRight[i]:0};
-            float rec[2]={combined[0]*db(current[RecordGain])+(recordLoop?loop[0]:0),combined[1]*db(current[RecordGain])+(recordLoop?loop[1]:0)};
+            oudGain+=smoothing*(desiredOud-oudGain);
+            if(desiredOud==0 && oudGain<1e-6f)oudGain=0;
+            const float channelGain=oudGain*db(current[RecordGain]);
+            float rec[2]={combined[0]*channelGain+(recordLoop?loop[0]:0),combined[1]*channelGain+(recordLoop?loop[1]:0)};
             float maxRec=std::max(std::abs(rec[0]),std::abs(rec[1])),need=maxRec>.94f?.94f/maxRec:1;
             recordLimiter=need<recordLimiter?need:recordLimiter+limiterRelease*(need-recordLimiter);recGR=std::max(recGR,-20*std::log10(std::max(recordLimiter,1e-9f)));
             if(recordLeft)recordLeft[i]=clamp(rec[0]*recordLimiter,-.98f,.98f);if(recordRight)recordRight[i]=clamp(rec[1]*recordLimiter,-.98f,.98f);recPeak=std::max(recPeak,maxRec*recordLimiter);
             float gain=monitorMicrophone?db(current[Output])*(1-current[Mute]):0;
             float loopGain=db(current[Output])*(1-current[Mute]);
-            float y[2]={combined[0]*gain+loop[0]*loopGain,combined[1]*gain+loop[1]*loopGain},peak=std::max(std::abs(y[0]),std::abs(y[1]));
+            float y[2]={combined[0]*channelGain*gain+loop[0]*loopGain,combined[1]*channelGain*gain+loop[1]*loopGain},peak=std::max(std::abs(y[0]),std::abs(y[1]));
             need=peak>.94f?.94f/peak:1;limiterGain=need<limiterGain?need:limiterGain+limiterRelease*(need-limiterGain);
             left[i]=clamp(y[0]*limiterGain,-.98f,.98f);right[i]=clamp(y[1]*limiterGain,-.98f,.98f);outPeak=std::max(outPeak,peak*limiterGain);
         }
