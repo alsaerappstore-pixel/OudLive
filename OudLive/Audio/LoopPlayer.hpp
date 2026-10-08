@@ -35,12 +35,15 @@ public:
         float s=speed.load(),v=volume.load();
         s=std::isfinite(s)?std::clamp(s,.5f,2.f):1;
         v=std::isfinite(v)?std::clamp(v,0.f,1.f):0;
-        const float target=playing.load()&&valid?v:0;
+        const bool enabled=playing.load();
+        const float target=enabled&&valid?v:0;
         outputRate=std::isfinite(outputRate)&&outputRate>0?outputRate:48000;
         const float smoothing=1-std::exp(-1.f/float(outputRate*.005));
         for(size_t i=0;i<count;++i) {
             left[i]=right[i]=0;gain+=smoothing*(target-gain);
-            if(!valid||gain<1e-7f)continue;
+            if(gain<1e-7f)gain=0;
+            // A muted channel keeps musical time; only pause freezes position.
+            if(!valid||(!enabled&&gain==0))continue;
             const size_t n=clip->left.size(),a=size_t(position)%n,b=(a+1)%n;
             const float f=float(position-std::floor(position));
             left[i]=(clip->left[a]+f*(clip->left[b]-clip->left[a]))*gain;

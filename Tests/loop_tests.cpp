@@ -26,6 +26,12 @@ int main(){
     player.playing=false;player.render(l.data(),r.data(),l.size(),48000);
     assert(std::abs(l.back())<1e-6);
     player.replace(nullptr);player.render(l.data(),r.data(),l.size(),48000);for(auto v:l)assert(v==0);
+    oud::LoopPlayer muted;auto clockClip=std::make_unique<oud::LoopPlayer::Clip>();
+    clockClip->sampleRate=48000;clockClip->left=original;clockClip->right=original;
+    muted.replace(std::move(clockClip));muted.playing=true;muted.volume=0;
+    muted.render(l.data(),r.data(),1280,48000);for(int i=0;i<1280;++i)assert(l[i]==0);
+    muted.volume=1;muted.render(l.data(),r.data(),9600,48000);
+    assert(std::abs(l.back()-original[(1280+9599)%4800])<1e-5);
     // Channel faders must affect live preview and the file in equal proportions.
     for(float amount:{0.f,.25f,1.f,2.f}) {
         oud::DSP mix;mix.set(oud::Input,0);mix.set(oud::Output,0);mix.set(oud::Bypass,1);mix.set(oud::RecordGain,6);mix.setOudVolume(amount);mix.prepare(48000);
