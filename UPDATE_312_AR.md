@@ -10,7 +10,11 @@
 
 ## التحقق
 نجحت اختبارات محلية لتطابق جميع الملفات الـ314 مع بصماتها الأصلية، والتكرار والسرعة، وفصل الاستماع عن التسجيل، وحدود الخرج، واختبارات DSP السابقة عند ستة معدلات عينات.
-لم يكتمل بعد بناء iPhone أو اختبار فك جميع الملفات على Apple أو فحص الواجهة بالمحاكي. لا يوجد IPA جديد مؤكد لهذه النسخة حتى تنجح GitHub Actions.
+نجح بناء iPhone arm64 وفحص IPA، وتطابق الملفات الـ314 داخل IPA، وفك ملفات WAV الـ292 عبر AVAudioFile، واختبارات WAV والفيديو والإعدادات والمحاكي. روجعت صورتا المكتبة والواجهة. لم يُختبر جهاز iPhone فعلي أو سماعة UGREEN هنا.
+
+البناء: https://github.com/alsaerappstore-pixel/OudLive/actions/runs/37760617202
+
+تحميل: https://github.com/alsaerappstore-pixel/OudLive/actions/runs/37760617202/artifacts/11541629473
 
 ## المصادر
 استخدام AVAudioFile لفك الصوت في الذاكرة فقط: https://developer.apple.com/documentation/avfaudio/avaudiofile

@@ -1,12 +1,17 @@
 {
   "version": "3.12.0",
   "build_number": 21,
-  "result": "pending_upload_and_macos_build",
+  "result": "success",
+  "commit": "e6811671f6d8903b8db6fb032933a2c483f1c9d3",
+  "workflow_run": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/37760617202",
+  "artifact_url": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/37760617202/artifacts/11541629473",
+  "artifact_sha256": "sha256:3c307238efca27151dd7758dc86fb8fe746ce49d66db725613a819d95c47fb69",
   "original_files": 314,
   "playable_wav": 292,
   "unsupported_rx2": 20,
-  "local_dsp_tests": true,
-  "local_loop_tests": true,
   "original_sha256_verified": true,
-  "device_tested": false
+  "apple_decoder_all_wav_verified": true,
+  "simulator_reviewed": true,
+  "device_tested": false,
+  "signed": false
 }
