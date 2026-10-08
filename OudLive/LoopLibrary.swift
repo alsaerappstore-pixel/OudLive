@@ -74,6 +74,11 @@ struct LoopLibraryPanel: View {
                 .font(.caption2).foregroundStyle(.secondary)
         }.padding(16).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
         .sheet(isPresented: $showLibrary) { UserLoopBrowser(audio: audio) }
+        .onAppear {
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--loops") { showLibrary = true }
+            #endif
+        }
     }
 }
 

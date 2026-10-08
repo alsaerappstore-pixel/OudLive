@@ -252,6 +252,7 @@ final class AudioModel: ObservableObject {
             if self.running {
                 self.monitoring = self.safeOutput
                 self.bridge.setMonitoringEnabled(self.monitoring)
+                self.bridge.setLoopPlaying(self.loopPlaying)
             }
             self.refreshRoute()
         }.store(in: &subscriptions)
