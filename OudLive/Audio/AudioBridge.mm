@@ -2,6 +2,7 @@
 #import <AudioToolbox/AudioToolbox.h>
 #import <AVFoundation/AVFoundation.h>
 #include "DSP.hpp"
+#include "LoopPlayer.hpp"
 #include <memory>
 #include <cstring>
 #include <mach/mach_time.h>
@@ -10,6 +11,8 @@
 struct AudioState {
     AudioUnit unit=nullptr;
     oud::DSP dsp;
+    oud::LoopPlayer loop;
+    std::vector<float> loopLeft,loopRight;
     std::vector<float> input;
     std::vector<float> recordLeft,recordRight,monitorLeft,monitorRight;
     UInt32 outputChannels=2;
@@ -42,8 +45,9 @@ static OSStatus render(void *context, AudioUnitRenderActionFlags *flags,
     *flags &= ~kAudioUnitRenderAction_OutputIsSilence;
     float *left=state->outputChannels==1 ? state->monitorLeft.data() : static_cast<float *>(out->mBuffers[0].mData);
     float *right=state->outputChannels==1 ? state->monitorRight.data() : static_cast<float *>(out->mBuffers[1].mData);
+    state->loop.render(state->loopLeft.data(),state->loopRight.data(),frames,state->sampleRate);
     state->dsp.process(static_cast<float *>(input.mBuffers[0].mData),left,right,frames,
-                       state->recordLeft.data(),state->recordRight.data(),state->monitoring.load());
+                       state->recordLeft.data(),state->recordRight.data(),state->monitoring.load(),state->loopLeft.data(),state->loopRight.data(),state->loop.recordEnabled.load());
     if(state->outputChannels==1) {
         auto *mono=static_cast<float *>(out->mBuffers[0].mData);
         for(UInt32 i=0;i<frames;++i) mono[i]=.5f*(left[i]+right[i]);
@@ -76,6 +80,7 @@ static OSStatus render(void *context, AudioUnitRenderActionFlags *flags,
     // Close the live output immediately; Swift reopens it only after validating
     // the current headphone route. Recording has its own independent bus.
     _state->monitoring.store(false);
+    _state->loop.playing.store(false);
 }
 - (BOOL)startWithSampleRate:(double)sampleRate error:(NSError **)error {
     [self stop];
@@ -106,6 +111,7 @@ static OSStatus render(void *context, AudioUnitRenderActionFlags *flags,
         if(result==noErr) {
             _state->input.assign(maximum,0); _state->dsp.prepare(float(sampleRate)); _state->error.store(0);
             _state->monitorLeft.assign(maximum,0); _state->monitorRight.assign(maximum,0);
+            _state->loopLeft.assign(maximum,0); _state->loopRight.assign(maximum,0);
             _state->recordLeft.assign(maximum,0); _state->recordRight.assign(maximum,0);
             check(AudioOutputUnitStart(_state->unit));
         }
@@ -124,7 +130,30 @@ static OSStatus render(void *context, AudioUnitRenderActionFlags *flags,
     for(NSInteger index=0;index<values.count;++index) _state->dsp.set((int)index,values[index].floatValue);
     _state->dsp.endUpdate();
 }
+- (BOOL)loadLoopAtURL:(NSURL *)url error:(NSError **)error {
+    AVAudioFile *file=[[AVAudioFile alloc] initForReading:url commonFormat:AVAudioPCMFormatFloat32 interleaved:NO error:error];
+    if(!file) return NO;
+    AVAudioFormat *format=file.processingFormat;
+    if(file.length<=0 || file.length>format.sampleRate*120 || format.channelCount<1 || format.channelCount>2) {
+        if(error)*error=[NSError errorWithDomain:@"OudLive.Loops" code:-1 userInfo:@{NSLocalizedDescriptionKey:@"هذا الملف غير مدعوم: يلزم صوت أحادي أو ستيريو ومدته أقل من دقيقتين."}];
+        return NO;
+    }
+    AVAudioPCMBuffer *buffer=[[AVAudioPCMBuffer alloc] initWithPCMFormat:format frameCapacity:(AVAudioFrameCount)file.length];
+    if(!buffer || ![file readIntoBuffer:buffer error:error] || !buffer.floatChannelData || !buffer.frameLength) return NO;
+    auto clip=std::make_unique<oud::LoopPlayer::Clip>();clip->sampleRate=format.sampleRate;
+    clip->left.assign(buffer.floatChannelData[0],buffer.floatChannelData[0]+buffer.frameLength);
+    const auto right=buffer.floatChannelData[format.channelCount>1?1:0];
+    clip->right.assign(right,right+buffer.frameLength);
+    for(auto &v:clip->left)if(!std::isfinite(v))v=0;
+    for(auto &v:clip->right)if(!std::isfinite(v))v=0;
+    _state->loop.replace(std::move(clip));return YES;
+}
+- (void)setLoopPlaying:(BOOL)playing { _state->loop.playing.store(playing); }
+- (void)setLoopSpeed:(float)speed volume:(float)volume recordEnabled:(BOOL)enabled {
+    _state->loop.speed.store(speed);_state->loop.volume.store(volume);_state->loop.recordEnabled.store(enabled);
+}
 - (void)stop {
+    if(_state) _state->loop.playing.store(false);
     if(_state && _state->unit) {
         AudioOutputUnitStop(_state->unit); AudioUnitUninitialize(_state->unit);
         AudioComponentInstanceDispose(_state->unit); _state->unit=nullptr;

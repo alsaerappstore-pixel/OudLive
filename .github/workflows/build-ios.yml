@@ -26,12 +26,16 @@ jobs:
         run: |
           python3 scripts/verify-preset-assets.py
           python3 scripts/verify-mixer.py
+          clang++ -std=c++17 -O1 -g -fsanitize=address,undefined Tests/loop_tests.cpp -o build/loop-tests
+          build/loop-tests | tee build/loop-test-results.txt
       - name: Build and package arm64 iPhone app
         # Require measured audible differences before packaging the app.
         run: |
           clang++ -std=c++17 -O1 -g -fsanitize=address,undefined Tests/mixer_effects.cpp -o build/mixer-effects
           build/mixer-effects | tee build/mixer-effects-results.txt
           bash scripts/build-ipa.sh
+          python3 scripts/verify-user-loops.py build/OudLive-unsigned.ipa
+          swift Tests/LoopDecodeTests.swift
       - name: Verify processed audio recording
         run: |
           clang++ -std=c++17 -O1 -g -fsanitize=address,undefined Tests/recording_tests.cpp -framework AudioToolbox -framework CoreFoundation -o build/recording-tests

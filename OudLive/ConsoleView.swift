@@ -28,6 +28,7 @@ struct ConsoleView: View {
                     if !wide { recordBar }
                     listeningPanel(wide: wide)
                     LiveLatencyControl(audio: audio)
+                    LoopLibraryPanel(audio: audio)
                     MixerView(audio: audio).id("console-mixer")
                     if wide {
                         HStack(alignment: .top, spacing: 12) {

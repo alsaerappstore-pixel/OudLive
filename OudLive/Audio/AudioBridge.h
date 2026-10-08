@@ -7,6 +7,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setParameter:(NSInteger)parameter value:(float)value;
 - (void)setParameters:(NSArray<NSNumber *> *)values;
 - (void)setMonitoringEnabled:(BOOL)enabled;
+- (BOOL)loadLoopAtURL:(NSURL *)url error:(NSError **)error;
+- (void)setLoopPlaying:(BOOL)playing;
+- (void)setLoopSpeed:(float)speed volume:(float)volume recordEnabled:(BOOL)enabled;
 @property(nonatomic, readonly) float recordingPeak;
 @property(nonatomic, readonly) float recordingReduction;
 - (BOOL)beginRecordingAtURL:(NSURL *)url error:(NSError **)error;

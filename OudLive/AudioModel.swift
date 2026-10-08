@@ -46,6 +46,33 @@ final class AudioModel: ObservableObject {
             }
         }
     }
+    @Published var loopLibrary = LoopLibrary()
+    @Published private(set) var selectedLoop: UserLoop?
+    @Published private(set) var loopPlaying = false
+    @Published var loopSpeed: Float = 1 { didSet { updateLoopControls() } }
+    @Published var loopVolume: Float = 0.65 { didSet { updateLoopControls() } }
+    @Published var recordLoop = true { didSet { updateLoopControls() } }
+    private var recordingLoopChoice = true
+    private func updateLoopControls() {
+        bridge.setLoopSpeed(loopSpeed, volume: loopVolume, recordEnabled: recording || recordingPreparing || recordingFinishing ? recordingLoopChoice : recordLoop)
+    }
+    func selectLoop(_ item: UserLoop) {
+        guard item.playable, let url = loopLibrary.url(item) else { return }
+        do {
+            try bridge.loadLoop(at: url); selectedLoop = item
+            updateLoopControls()
+            if running { loopPlaying = true; bridge.setLoopPlaying(true) }
+            else { message = "تم اختيار الإيقاع. اضغط استماع مباشر ثم تشغيل الإيقاع." }
+        } catch { message = "تعذّر فتح الإيقاع: \(error.localizedDescription)" }
+    }
+    func toggleLoop() {
+        guard running else { message = "شغّل الاستماع المباشر أولًا، ثم اضغط تشغيل الإيقاع."; return }
+        guard selectedLoop != nil else { message = "اختر إيقاعًا من المكتبة أولًا."; return }
+        loopPlaying.toggle(); bridge.setLoopPlaying(loopPlaying)
+    }
+    func renameLoop(_ item: UserLoop, name: String) {
+        loopLibrary.rename(item, name: name)
+    }
     @Published private(set) var comparison: NamedSound?
     @Published private(set) var comparingA = false
     func captureComparison() {
@@ -405,6 +432,7 @@ final class AudioModel: ObservableObject {
         }
     }
     func stop() {
+        loopPlaying = false; bridge.setLoopPlaying(false)
         if recording || recordingPreparing { finishRecording() }
         closeCameraPreview()
         generation += 1; starting = false; bridge.stop(); running = false
@@ -496,6 +524,7 @@ extension AudioModel {
     }
     private func startRecordingFile(_ url: URL, cameraURL: URL?) {
         do {
+            recordingLoopChoice = recordLoop; updateLoopControls()
             try bridge.beginRecording(at: url)
             recordingURL = url; self.cameraURL = cameraURL
             recordingDate = Date(); recordingSeconds = 0; recording = true; recordingPreparing = false

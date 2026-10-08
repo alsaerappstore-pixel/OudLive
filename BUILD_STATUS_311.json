@@ -1,0 +1,25 @@
+{
+  "commit": "2583574ae479a6cab67d049a94849acdbb2b8c01",
+  "workflow_run": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/37678668469",
+  "artifact_url": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/37678668469/artifacts/11508536730",
+  "artifact_sha256": "sha256:d5c51088db51ddd4eb37f1ebb9370459e4521398cf6a706cc96e866b96ac3ff9",
+  "result": "success",
+  "version": "3.11.0",
+  "build_number": 20,
+  "signed": false,
+  "quick_choices": 10,
+  "preset_images": 10,
+  "rhythms": 0,
+  "mixer_faders": 6,
+  "effect_difference_tests": true,
+  "reference_noise_reduction_db": 48,
+  "reference_reverb_tail_increase_db": 20,
+  "bass_range_db": [
+    -9,
+    9
+  ],
+  "headset_tested": false,
+  "physical_camera_tested": false,
+  "photos_export_device_tested": false,
+  "touch_interactions_device_tested": false
+}

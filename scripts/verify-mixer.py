@@ -6,7 +6,7 @@ assert 'RhythmBank' not in project and 'LiveRhythms.swift' not in project
 assert 'MixerView.swift' in project
 for file in ['OudLive/Audio/AudioBridge.mm','OudLive/Audio/AudioBridge.h','OudLive/Audio/DSP.hpp']:
     text=(root/file).read_text()
-    assert 'rhythm' not in text.lower() and 'backing' not in text.lower(), file
+    assert 'RhythmEngine' not in text and 'RhythmBank' not in text, file
 assert not list((root/'OudLive/RhythmBank').glob('*'))
 assert not (root/'OudLive/Audio/RhythmEngine.hpp').exists()
-print('PASS: mixer wired; rhythm engine, bridge, mixing inputs and bundled samples removed')
+print('PASS: mixer wired; old synthetic rhythm engine removed; user-file player is separate')
