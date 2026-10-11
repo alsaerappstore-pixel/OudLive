@@ -16,5 +16,5 @@ for entry in entries where entry.playable {
     }
     count += 1
 }
-precondition(count == 292)
-print("PASS: Apple's audio decoder opened every one of the 292 supplied WAV originals")
+precondition(count == 160)
+print("PASS: Apple's audio decoder opened all 160 replacement rhythm playback files")

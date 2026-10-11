@@ -63,18 +63,40 @@ final class AudioModel: ObservableObject {
             try bridge.loadLoop(at: url); selectedLoop = item
             updateLoopControls()
             if running { loopPlaying = true; bridge.setLoopPlaying(true) }
-            else { message = "تم اختيار الإيقاع. اضغط استماع مباشر ثم تشغيل الإيقاع." }
+            else { startLoopListening() }
         } catch { message = "تعذّر فتح الإيقاع: \(error.localizedDescription)" }
     }
     func toggleLoop() {
-        guard running else { message = "شغّل الاستماع المباشر أولًا، ثم اضغط تشغيل الإيقاع."; return }
         guard selectedLoop != nil else { message = "اختر إيقاعًا من المكتبة أولًا."; return }
+        guard running else { startLoopListening(); return }
         loopPlaying.toggle(); bridge.setLoopPlaying(loopPlaying)
+    }
+    private func startLoopListening() {
+        guard !starting, !recordingPreparing, !recordingFinishing else { return }
+        starting = true; generation += 1; let request = generation
+        session.requestRecordPermission { [weak self] granted in
+            Task { @MainActor in
+                guard let self, self.generation == request else { return }
+                self.starting = false
+                guard granted else { self.message = "اسمح بالميكروفون من إعدادات الآيفون لتشغيل جلسة الصوت."; return }
+                await self.start()
+                guard self.generation == request, self.running, self.selectedLoop != nil else { return }
+                self.updateLoopControls()
+                self.loopPlaying = true; self.bridge.setLoopPlaying(true)
+                if !self.monitoring { self.message = "الإيقاع مباشر من مكبر الهاتف • مراقبة الميكروفون مغلقة لمنع الصفير." }
+            }
+        }
     }
     func assignLoop(_ item: UserLoop?, to index: Int) { loopLibrary.assign(item, to: index) }
     func deleteLoop(_ item: UserLoop) {
-        if selectedLoop?.id == item.id { loopPlaying = false; bridge.setLoopPlaying(false); selectedLoop = nil }
-        loopLibrary.delete(item)
+        deleteLoops([item.id])
+    }
+    func deleteLoops(_ ids: Set<String>) {
+        if let id = selectedLoop?.id, ids.contains(id) { loopPlaying = false; bridge.setLoopPlaying(false); selectedLoop = nil }
+        loopLibrary.delete(ids: ids)
+    }
+    func assignLoops(_ ids: [String], to targets: [Int]) -> Bool {
+        loopLibrary.assign(ids: ids, to: targets)
     }
     func restoreLoops() { loopLibrary.restoreDeleted() }
     func renameLoop(_ item: UserLoop, name: String) {

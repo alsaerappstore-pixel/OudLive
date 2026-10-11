@@ -30,6 +30,9 @@ struct LoopLibrary {
         let blocked = removed
         let usable = Set(originals.filter { $0.playable && !blocked.contains($0.id) }.map(\.id))
         slots = (0..<5).map { $0 < stored.count && usable.contains(stored[$0]) ? stored[$0] : "" }
+        removed.formIntersection(Set(originals.map(\.id)))
+        defaults.set(slots, forKey: "OudLive.loopSlots.v1")
+        defaults.set(Array(removed), forKey: "OudLive.removedLoops.v1")
     }
     func slot(_ index: Int) -> UserLoop? {
         guard slots.indices.contains(index) else { return nil }
@@ -41,9 +44,23 @@ struct LoopLibrary {
         slots[index] = item?.id ?? ""; saveSlots()
     }
     private func saveSlots() { defaults.set(slots, forKey: "OudLive.loopSlots.v1") }
+    @discardableResult
+    mutating func assign(ids: [String], to targets: [Int]) -> Bool {
+        let usable = Set(items.filter(\.playable).map(\.id))
+        guard !ids.isEmpty, ids.count <= 5, ids.count == targets.count,
+              Set(ids).count == ids.count, Set(targets).count == targets.count,
+              ids.allSatisfy({ usable.contains($0) }),
+              targets.allSatisfy({ slots.indices.contains($0) }) else { return false }
+        for (id, target) in zip(ids, targets) { slots[target] = id }
+        saveSlots(); return true
+    }
     mutating func delete(_ item: UserLoop) {
-        removed.insert(item.id)
-        slots = slots.map { $0 == item.id ? "" : $0 }; saveSlots()
+        delete(ids: [item.id])
+    }
+    mutating func delete(ids: Set<String>) {
+        let valid = ids.intersection(Set(originals.map(\.id)))
+        removed.formUnion(valid)
+        slots = slots.map { valid.contains($0) ? "" : $0 }; saveSlots()
         defaults.set(Array(removed), forKey: "OudLive.removedLoops.v1")
     }
     mutating func restoreDeleted() {
@@ -164,6 +181,10 @@ private struct UserLoopBrowser: View {
     @State private var group = "الكل"
     @State private var editing: UserLoop?
     @State private var newName = ""
+    @State private var selected: Set<String> = []
+    @State private var bulkDelete = false
+    @State private var showAssignment = false
+    private var selectedItems: [UserLoop] { audio.loopLibrary.items.filter { selected.contains($0.id) } }
     private var filtered: [UserLoop] {
         audio.loopLibrary.items.filter {
             (group == "الكل" || $0.group == group) && (search.isEmpty || audio.loopLibrary.title($0).localizedCaseInsensitiveContains(search) || $0.name.localizedCaseInsensitiveContains(search))
@@ -175,11 +196,24 @@ private struct UserLoopBrowser: View {
                 Section {
                     Picker("المجموعة", selection: $group) {
                         Text("الكل").tag("الكل")
-                        Text("شرقية 2025").tag("شرقية 2025")
-                        Text("دفوف 128").tag("دفوف 128")
+                        Text("منوع 1").tag("منوع 1")
+                        Text("منوع 2").tag("منوع 2")
                     }.pickerStyle(.segmented)
-                    Text("\(audio.loopLibrary.items.filter(\.playable).count) إيقاع WAV متاحًا. حُفظت ملفات RX2 العشرون كما هي، لكنها تحتاج مشغّل REX ولا تعمل هنا. تعديل الاسم يغيّر اسم العرض فقط.")
+                    Text("\(audio.loopLibrary.items.count) إيقاع متاحًا. اضغط اسم الإيقاع لسماعه مباشرة. تعديل الاسم يغيّر اسم العرض فقط.")
                         .font(.caption).foregroundStyle(.secondary)
+                }
+                if assigningSlot == nil {
+                    Section("التحديد: \(selected.count)") {
+                        HStack {
+                            Button(search.isEmpty && group == "الكل" ? "تحديد الكل" : "تحديد النتائج") { selected.formUnion(filtered.map(\.id)) }
+                            Spacer()
+                            Button("إلغاء التحديد") { selected.removeAll() }.disabled(selected.isEmpty)
+                        }.buttonStyle(.borderless)
+                        Button("إضافة المحدد إلى الخانات الخمس") { showAssignment = true }
+                            .disabled(selected.isEmpty || selected.count > 5)
+                        Button("حذف المحدد (\(selected.count))", role: .destructive) { bulkDelete = true }.disabled(selected.isEmpty)
+                        if selected.count > 5 { Text("اختر حتى خمسة إيقاعات لإضافتها للخانات. يمكنك حذف أي عدد دفعة واحدة.").font(.caption) }
+                    }
                 }
                 ForEach(filtered) { item in
                     HStack(spacing: 12) {
@@ -201,6 +235,13 @@ private struct UserLoopBrowser: View {
                             .buttonStyle(.borderless).accessibilityLabel("تعديل اسم \(audio.loopLibrary.title(item))")
                         Button(role: .destructive) { deleting = item } label: { Image(systemName: "trash").frame(width: 44, height: 44) }
                             .buttonStyle(.borderless).accessibilityLabel("حذف \(audio.loopLibrary.title(item))")
+                        if assigningSlot == nil {
+                            Button {
+                                if selected.contains(item.id) { selected.remove(item.id) } else { selected.insert(item.id) }
+                            } label: { Image(systemName: selected.contains(item.id) ? "checkmark.square.fill" : "square").frame(width: 44, height: 44) }
+                                .buttonStyle(.borderless).accessibilityLabel("تحديد \(audio.loopLibrary.title(item))")
+                                .accessibilityValue(selected.contains(item.id) ? "محدد" : "غير محدد")
+                        }
                     }
                 }
                 if filtered.isEmpty { Text("لا توجد إيقاعات مطابقة") }
@@ -212,7 +253,7 @@ private struct UserLoopBrowser: View {
             .navigationTitle(assigningSlot.map { "اختر لخانة \($0 + 1)" } ?? "إيقاعاتي الأصلية")
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("تم") { dismiss() } } }
             .confirmationDialog("حذف الإيقاع من المكتبة؟", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }), titleVisibility: .visible) {
-                Button("حذف الإيقاع", role: .destructive) { if let deleting { audio.deleteLoop(deleting) }; deleting = nil }
+                Button("حذف الإيقاع", role: .destructive) { if let deleting { audio.deleteLoop(deleting); selected.remove(deleting.id) }; deleting = nil }
                 Button("إلغاء", role: .cancel) { deleting = nil }
             } message: { Text("يُزال من القائمة وخانات الحفظ، ويتوقف إذا كان يعمل. يمكنك استعادته لاحقًا من المكتبة.") }
             .alert("تعديل اسم العرض", isPresented: Binding(get: { editing != nil }, set: { if !$0 { editing = nil } })) {
@@ -220,6 +261,56 @@ private struct UserLoopBrowser: View {
                 Button("حفظ") { if let editing { audio.renameLoop(editing, name: newName) }; editing = nil }
                 Button("إلغاء", role: .cancel) { editing = nil }
             } message: { Text("اترك الاسم فارغًا لاستعادة الاسم الأصلي.") }
+            .confirmationDialog("حذف \(selected.count) إيقاعًا؟", isPresented: $bulkDelete, titleVisibility: .visible) {
+                Button("حذف المحدد", role: .destructive) { audio.deleteLoops(selected); selected.removeAll() }
+                Button("إلغاء", role: .cancel) {}
+            } message: { Text("تُفرغ الخانات المرتبطة بها، ويتوقف الإيقاع المحذوف. يمكنك استعادتها من المكتبة.") }
+            .sheet(isPresented: $showAssignment) { LoopSlotAssignment(audio: audio, items: selectedItems) }
+        }.environment(\.layoutDirection, .rightToLeft)
+    }
+}
+
+@MainActor
+private struct LoopSlotAssignment: View {
+    @ObservedObject var audio: AudioModel
+    let items: [UserLoop]
+    @Environment(\.dismiss) private var dismiss
+    @State private var targets: [String: Int] = [:]
+    @State private var error = false
+    private var valid: Bool {
+        let values = items.compactMap { targets[$0.id] }
+        return !items.isEmpty && values.count == items.count && Set(values).count == values.count && values.allSatisfy { (0..<5).contains($0) }
+    }
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Text("اختر خانة مختلفة لكل إيقاع. الخانات المشغولة لا تُستبدل إلا باختيارك ثم الضغط على حفظ.")
+                    ForEach(items) { item in
+                        Picker(audio.loopLibrary.title(item), selection: Binding(get: { targets[item.id] ?? -1 }, set: { targets[item.id] = $0 })) {
+                            Text("اختر الخانة").tag(-1)
+                            ForEach(0..<5) { index in
+                                Text("\(index + 1) — \(audio.loopLibrary.slot(index).map { "استبدال: " + audio.loopLibrary.title($0) } ?? "فارغة")").tag(index)
+                            }
+                        }
+                    }
+                    if !valid { Text("حدد خانة مختلفة لكل إيقاع لإتاحة الحفظ.").font(.caption).foregroundStyle(.secondary) }
+                }
+            }.navigationTitle("تعيين خانات الإيقاعات")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("إلغاء") { dismiss() } }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("حفظ") {
+                            if audio.assignLoops(items.map(\.id), to: items.map { targets[$0.id] ?? -1 }) { dismiss() } else { error = true }
+                        }.disabled(!valid)
+                    }
+                }
+                .onAppear {
+                    guard targets.isEmpty else { return }
+                    let empty = (0..<5).filter { audio.loopLibrary.slot($0) == nil }
+                    for (item, index) in zip(items, empty) { targets[item.id] = index }
+                }
+                .alert("تعذّر حفظ الخانات؛ راجع الاختيارات.", isPresented: $error) { Button("حسنًا", role: .cancel) {} }
         }.environment(\.layoutDirection, .rightToLeft)
     }
 }
