@@ -15,7 +15,11 @@ struct ConsoleView: View {
     @State private var presetsRevealed = false
     @State private var sheet: ConsoleSheet?
     @AppStorage("OudLive.console") private var console = true
-    private let blue = Color(red: 0.15, green: 0.61, blue: 1)
+    @AppStorage("OudLive.consoleDesign") private var designRaw = "eighties"
+    @State private var tab = 0
+    private var design: AppEra { AppEra(rawValue: designRaw) ?? .eighties }
+    private var blue: Color { design == .eighties ? .orange : (design == .nineties ? .mint : .cyan) }
+    private var designName: String { design == .eighties ? "استوديو الثمانينات" : (design == .nineties ? "استوديو التسعينات" : "المكسر الحديث") }
     private let surface = Color(red: 0.045, green: 0.073, blue: 0.092)
     private var busy: Bool { audio.recording || audio.recordingPreparing || audio.recordingFinishing }
     var body: some View {
@@ -25,38 +29,36 @@ struct ConsoleView: View {
             ScrollView {
                 VStack(spacing: wide ? 12 : 16) {
                     header(wide: wide)
-                    if !wide { recordBar }
-                    listeningPanel(wide: wide)
-                    LiveLatencyControl(audio: audio)
-                    LoopLibraryPanel(audio: audio)
-                    MixerView(audio: audio).id("console-mixer")
-                    if wide {
-                        HStack(alignment: .top, spacing: 12) {
-                            inputPanel(compact: false).frame(width: 108)
-                            hero(height: 218).frame(maxWidth: .infinity)
-                            cameraPanel(height: 218).frame(width: max(240, geometry.size.width * 0.32))
-                        }.environment(\.layoutDirection, .leftToRight)
-                    } else {
-                        hero(height: 228).id("console-hero")
-                        inputPanel(compact: true)
-                        cameraPanel(height: 212)
-                    }
-                    EffectsPresetDrawer(revealed: $presetsRevealed,
-                        cover: effectRack(wide: wide), back: QuickPresetGrid(audio: audio))
-                        .id("console-rack")
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Label("خاناتي المحفوظة", systemImage: "square.grid.2x2").font(.headline)
-                            Spacer()
-                            Button("فتح الخانات") { sheet = .memories }.frame(minHeight: 44)
+                    if tab == 0 {
+                        listeningPanel(wide: wide)
+                        SignalLED(level: audio.outputLevel, tint: .green)
+                        if design == .nineties {
+                            vintageRack
+                        } else {
+                            MixerView(audio: audio).id("console-mixer")
                         }
-                        QuickSoundBank(audio: audio)
-                    }.modifier(ConsolePanel())
+                        EffectsPresetDrawer(revealed: $presetsRevealed,
+                            cover: effectRack(wide: wide), back: QuickPresetGrid(audio: audio))
+                            .id("console-rack")
+                        DisclosureGroup("خانات أصواتي المحفوظة") { QuickSoundBank(audio: audio) }
+                            .modifier(ConsolePanel())
+                        DisclosureGroup("معاينة الفيديو") { cameraPanel(height: wide ? 240 : 210) }
+                            .modifier(ConsolePanel())
+                    } else if tab == 1 {
+                        MixerView(audio: audio).id("console-mixer")
+                        effectRack(wide: wide)
+                        LiveLatencyControl(audio: audio)
+                        inputPanel(compact: true)
+                    } else if tab == 2 {
+                        LoopLibraryPanel(audio: audio)
+                    } else {
+                        RecordingView(audio: audio, libraryOnly: true)
+                    }
                     Text(audio.message).font(.caption).foregroundStyle(Color(white: 0.72)).frame(maxWidth: .infinity, alignment: .leading)
                     CopyrightFooter()
                 }.padding(wide ? 12 : 16).frame(maxWidth: 1500).frame(maxWidth: .infinity)
             }
-            .background(Color(red: 0.015, green: 0.03, blue: 0.038))
+            .background(design == .eighties ? Color(red: 0.12, green: 0.075, blue: 0.04) : Color(red: 0.015, green: 0.03, blue: 0.038))
             .onChange(of: wide) { _ in
                 if audio.cameraSession != nil && !busy && !audio.cameraPreviewPreparing { audio.openCameraPreview(front: audio.frontCamera) }
             }
@@ -85,7 +87,8 @@ struct ConsoleView: View {
             }
         }
         .preferredColorScheme(.dark).foregroundStyle(.white).tint(blue)
-        .environment(\.oudTheme, .studio).environment(\.oudEra, .modern).environment(\.oudPalette, .ice)
+        .environment(\.oudTheme, .studio).environment(\.oudEra, design).environment(\.oudPalette, design == .eighties ? .original : .ice)
+        .safeAreaInset(edge: .bottom) { navigationDock }
         .sheet(item: $sheet) { panel($0) }
         .alert("الحفظ في الصور", isPresented: Binding(get: { audio.photosNotice != nil }, set: { if !$0 { audio.photosNotice = nil } })) {
             Button("تم") { audio.photosNotice = nil }
@@ -94,6 +97,9 @@ struct ConsoleView: View {
         .task {
             #if DEBUG
             let arguments = ProcessInfo.processInfo.arguments
+            for era in AppEra.allCases where arguments.contains("--design-" + era.rawValue) { designRaw = era.rawValue }
+            if arguments.contains("--console-mixer") { tab = 1 }
+            if arguments.contains("--loops") { tab = 2 }
             if arguments.contains("--console-presets") { audio.chooseRecordingPreset(RecordingPreset.all[8]) }
             do {
                 try? await Task.sleep(nanoseconds: 300_000_000)
@@ -106,6 +112,50 @@ struct ConsoleView: View {
             if arguments.contains("--console-library") { sheet = .library }
             #endif
         }
+    }
+    private var navigationDock: some View {
+        VStack(spacing: 8) {
+            recordBar
+            HStack(spacing: 0) {
+                navItem(0, "العزف", "music.note")
+                navItem(1, "المكسر", "slider.vertical.3")
+                navItem(2, "الإيقاعات", "waveform")
+                navItem(3, "تسجيلاتي", "play.rectangle")
+            }
+            CopyrightFooter()
+        }.padding(.horizontal, 12).padding(.top, 8).background(surface)
+    }
+    private func navItem(_ index: Int, _ title: String, _ icon: String) -> some View {
+        Button { tab = index } label: {
+            VStack(spacing: 4) { Image(systemName: icon).font(.title3); Text(title).font(.caption) }
+                .frame(maxWidth: .infinity, minHeight: 48)
+                .foregroundStyle(tab == index ? blue : .white.opacity(0.65))
+        }.accessibilityAddTraits(tab == index ? .isSelected : [])
+    }
+    private var vintageRack: some View {
+        VStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 8) {
+                Label("صوت العود مباشر", systemImage: "waveform.path").font(.headline)
+                SignalLED(level: audio.inputLevel, tint: .mint)
+                Text(audio.settings.preset).font(.system(.body, design: .monospaced))
+            }.padding(16).frame(maxWidth: .infinity).background(Color.cyan.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+            rackRow(.reverb, "الصدى", [.reverbWet, .reverbDry])
+            rackRow(.eq, "موازن الصوت", [.low, .high])
+            rackRow(.compressor, "ضاغط الصوت", [.compression, .recordGain])
+        }
+    }
+    private func rackRow(_ effect: Effect, _ name: String, _ parameters: [Parameter]) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(name).font(.headline)
+                Toggle("تشغيل", isOn: Binding(get: { audio.settings.enabled(effect) }, set: { audio.setEnabled(effect, $0) })).labelsHidden()
+                    .accessibilityLabel("تفعيل " + name)
+                Button("التفاصيل") { sheet = .effect(effect) }.font(.caption).frame(minHeight: 44)
+            }.frame(maxWidth: .infinity)
+            ForEach(parameters, id: \.rawValue) { parameter in
+                ConsoleDial(audio: audio, parameter: parameter, palette: .gold, diameter: 68)
+            }
+        }.modifier(ConsolePanel())
     }
     private var microphoneChoice: some View {
         Picker("مصدر الميكروفون", selection: $audio.usesBluetoothMic) {
@@ -137,7 +187,7 @@ struct ConsoleView: View {
                 Spacer()
                 AudioOutputPicker().frame(width: 44, height: 44)
             }
-            microphoneChoice
+            DisclosureGroup("مصدر المايك والتوصيل") { microphoneChoice }
             listeningButton
             }
             if audio.running {
@@ -151,14 +201,21 @@ struct ConsoleView: View {
     private func header(wide: Bool) -> some View {
         HStack(spacing: 12) {
             HStack(spacing: 8) {
-                Image("OudHero").resizable().scaledToFill().frame(width: 44, height: 44).clipShape(Circle())
+                Image(SoundSettings.imageName(audio.settings.preset)).resizable().scaledToFill().frame(width: 52, height: 52).clipShape(RoundedRectangle(cornerRadius: 8))
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("معالج العود").font(wide ? .title3.bold() : .title2.bold())
-                    Text("صوت احترافي مباشر").font(.caption2).foregroundStyle(Color(white: 0.72))
+                    Text("عود لايف").font(wide ? .title3.bold() : .title2.bold())
+                    Text(designName).font(.caption2).foregroundStyle(Color(white: 0.72))
                 }
             }.environment(\.layoutDirection, .rightToLeft)
             Spacer(minLength: 4)
-            if wide { recordBar.frame(maxWidth: 270); Spacer(minLength: 4) }
+            Menu {
+                Picker("شكل الواجهة", selection: $designRaw) {
+                    Text("استوديو الثمانينات").tag("eighties")
+                    Text("استوديو التسعينات").tag("nineties")
+                    Text("المكسر الحديث").tag("modern")
+                }
+            } label: { Image(systemName: "paintpalette").frame(width: 44, height: 44) }
+            .accessibilityLabel("اختيار تصميم التطبيق")
             Button { sheet = .library } label: { Image(systemName: "folder").font(.title3).frame(width: 44, height: 44) }.accessibilityLabel("الملفات والتسجيلات")
             Button { sheet = .settings } label: { Image(systemName: "gearshape").font(.title3).frame(width: 44, height: 44) }.accessibilityLabel("الإعدادات")
         }.foregroundStyle(Color(white: 0.92)).padding(10).background(surface, in: RoundedRectangle(cornerRadius: 16))
@@ -359,7 +416,7 @@ struct ConsoleView: View {
                 .toolbar { Button("تم") { sheet = nil } }
                 .safeAreaInset(edge: .bottom) { CopyrightFooter().background(surface) }
         }.preferredColorScheme(.dark).environment(\.layoutDirection, .rightToLeft)
-            .environment(\.oudTheme, .studio).environment(\.oudEra, .modern).environment(\.oudPalette, .ice)
+            .environment(\.oudTheme, .studio).environment(\.oudEra, design).environment(\.oudPalette, design == .eighties ? .original : .ice)
     }
     private func sheetTitle(_ item: ConsoleSheet) -> String {
         switch item { case .library: return "الملفات والتسجيلات"; case .settings: return "الإعدادات"; case .memories: return "خانات أصواتي"; case .effect(let e): return effectLabel(e) }

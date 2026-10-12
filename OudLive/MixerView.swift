@@ -3,6 +3,8 @@ import SwiftUI
 @MainActor
 struct MixerView: View {
     @ObservedObject var audio: AudioModel
+    @Environment(\.oudEra) private var era
+    private var ink: Color { era == .eighties ? Color(white: 0.12) : .white }
     private let channels: [Parameter] = [.output, .input, .reverb, .reverbWet, .reverbDry, .noise, .compression, .low]
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -10,24 +12,24 @@ struct MixerView: View {
                 Label("مكسر الصوت", systemImage: "slider.vertical.3").font(.headline)
                 Spacer()
                 Text("٨ قنوات • اسحب للتعديل").font(.caption2)
-            }.foregroundStyle(Color(white: 0.12))
+            }.foregroundStyle(ink)
             GeometryReader { bounds in
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 3) {
                         ForEach(channels, id: \.rawValue) { parameter in
                             MixerStrip(audio: audio, parameter: parameter)
-                                .frame(width: max(54, (bounds.size.width - 15) / 6))
+                                .frame(width: max(78, (bounds.size.width - 9) / 4))
                         }
                     }
                 }
-            }.frame(height: 304)
-            Text("الصدى والتشويش: ٠–١٠٠٪. الجهير: ±٩ dB؛ الصفر محايد. اسحب القنوات أفقيًا إذا ضاقت الشاشة.").font(.caption2).foregroundStyle(Color(white: 0.2)).fixedSize(horizontal: false, vertical: true)
-            Text("المبلول: انعكاسات الصدى وذيله. الجاف: العود المباشر قبل الصدى. كلاهما مستقل ٠–١٠٠٪؛ خفض الجاف لا يقلل تغذية الصدى. إيقاف الصدى يعيد الصوت المباشر كاملًا.").font(.caption2).foregroundStyle(Color(white: 0.2)).fixedSize(horizontal: false, vertical: true)
+            }.frame(height: 332)
+            Text("الصدى والتشويش: ٠–١٠٠٪. الجهير: ±٩ dB؛ الصفر محايد. اسحب القنوات أفقيًا إذا ضاقت الشاشة.").font(.caption2).foregroundStyle(ink.opacity(0.8)).fixedSize(horizontal: false, vertical: true)
+            Text("المبلول: انعكاسات الصدى وذيله. الجاف: العود المباشر قبل الصدى. كلاهما مستقل ٠–١٠٠٪؛ خفض الجاف لا يقلل تغذية الصدى. إيقاف الصدى يعيد الصوت المباشر كاملًا.").font(.caption2).foregroundStyle(ink.opacity(0.8)).fixedSize(horizontal: false, vertical: true)
             Text("لمبات المايك والصوت تقيس الإشارة الحية؛ لمبات المؤثرات تبين مقدارها. الأحمر يعني مستوى مرتفعًا. الصوت يضبط السماعة؛ مستوى التسجيل مستقل في صفحة التسجيل.")
-                .font(.caption2).foregroundStyle(Color(white: 0.24)).fixedSize(horizontal: false, vertical: true)
+                .font(.caption2).foregroundStyle(ink.opacity(0.7)).fixedSize(horizontal: false, vertical: true)
         }
         .padding(12)
-        .background(LinearGradient(colors: [Color(white: 0.96), Color(white: 0.76), Color(white: 0.91)], startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: 14))
+        .background(LinearGradient(colors: era == .eighties ? [Color(white: 0.96), Color(white: 0.76), Color(white: 0.91)] : [Color(red: 0.03, green: 0.08, blue: 0.10), Color(red: 0.02, green: 0.04, blue: 0.05)], startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Color(white: 0.55)))
         .environment(\.layoutDirection, .rightToLeft)
         .accessibilityIdentifier("audio-mixer")
@@ -38,6 +40,8 @@ struct MixerView: View {
 private struct MixerStrip: View {
     @ObservedObject var audio: AudioModel
     let parameter: Parameter
+    @Environment(\.oudEra) private var era
+    private var ink: Color { era == .eighties ? Color(white: 0.1) : .white }
     private var effect: Effect? {
         switch parameter { case .reverb, .reverbWet, .reverbDry: return .reverb; case .noise: return .noise; case .compression: return .compressor; case .low: return .eq; default: return nil }
     }
@@ -67,9 +71,9 @@ private struct MixerStrip: View {
     var body: some View {
         VStack(spacing: 7) {
             Circle().fill(Color(white: 0.35)).frame(width: 4, height: 4).overlay(Rectangle().fill(.white.opacity(0.5)).frame(width: 3, height: 1)).accessibilityHidden(true)
-            Text(title).font(.system(size: 12, weight: .bold)).multilineTextAlignment(.center).frame(height: 32)
+            Text(title).font(.system(size: 12, weight: .bold)).multilineTextAlignment(.center).frame(height: 44)
             Text(parameter.text(audio.value(parameter))).font(.system(size: 11, weight: .semibold, design: .monospaced)).lineLimit(1).minimumScaleFactor(0.7)
-                .foregroundStyle(Color(white: 0.12)).frame(height: 16)
+                .foregroundStyle(ink).frame(height: 16)
             HStack(spacing: 4) {
                 GeometryReader { track in
                     let travel = max(1, track.size.height - 38)
@@ -107,19 +111,19 @@ private struct MixerStrip: View {
                 MixerLamps(level: lampLevel).frame(width: 7, height: 174).accessibilityHidden(true)
             }.environment(\.layoutDirection, .leftToRight)
             if parameter == .low {
-                Button("محايد") { adjust(0) }.font(.system(size: 10, weight: .bold)).frame(maxWidth: .infinity, minHeight: 32)
+                Button("محايد") { adjust(0) }.font(.system(size: 10, weight: .bold)).frame(maxWidth: .infinity, minHeight: 44)
                     .background(Color.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 5)).accessibilityLabel("إعادة توازن الجهير إلى صفر")
             } else if let effect {
                 Button { audio.setEnabled(effect, !enabled) } label: {
                     Image(systemName: "power").font(.system(size: 14, weight: .bold))
                         .foregroundStyle(enabled ? Color.green.opacity(0.85) : Color.gray)
-                        .frame(maxWidth: .infinity, minHeight: 32).background(Color(white: 0.12), in: RoundedRectangle(cornerRadius: 5))
+                        .frame(maxWidth: .infinity, minHeight: 44).background(Color(white: 0.12), in: RoundedRectangle(cornerRadius: 5))
                 }.buttonStyle(.plain).accessibilityLabel("\(enabled ? "إيقاف" : "تشغيل") \(title.replacingOccurrences(of: "\n", with: " "))")
             } else {
-                Text("إشارة حية").font(.system(size: 9)).frame(height: 32)
+                Text("إشارة حية").font(.system(size: 9)).frame(height: 44)
             }
-        }.foregroundStyle(Color(white: 0.1)).padding(.horizontal, 3).padding(.vertical, 6)
-            .background(LinearGradient(colors: [.white.opacity(0.65), .gray.opacity(0.12), .white.opacity(0.5)], startPoint: .leading, endPoint: .trailing))
+        }.foregroundStyle(ink).padding(.horizontal, 3).padding(.vertical, 6)
+            .background(LinearGradient(colors: era == .eighties ? [.white.opacity(0.65), .gray.opacity(0.12), .white.opacity(0.5)] : [.cyan.opacity(0.06), .clear], startPoint: .leading, endPoint: .trailing))
             .overlay(alignment: .leading) { Rectangle().fill(.black.opacity(0.15)).frame(width: 1) }
     }
 }

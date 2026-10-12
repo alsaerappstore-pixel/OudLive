@@ -5,6 +5,22 @@ import Photos
 
 @MainActor
 final class AudioModel: ObservableObject {
+    @Published private(set) var phoneSpeakerRequested = false
+    @Published private(set) var phoneSpeakerActive = false
+    func setPhoneSpeaker(_ enabled: Bool) {
+        guard !recording, !recordingPreparing, !recordingFinishing, !starting else { return }
+        let resume = running
+        let resumeLoop = loopPlaying
+        if running { stop() }
+        phoneSpeakerRequested = enabled
+        if enabled { usesBluetoothMic = false }
+        if resume {
+            Task {
+                await start()
+                if running && resumeLoop { loopPlaying = true; bridge.setLoopPlaying(true) }
+            }
+        }
+    }
     @Published private(set) var savingToPhotos: URL?
     @Published var photosNotice: String?
     private var photoExportTask: Task<Void, Never>?
@@ -208,6 +224,7 @@ final class AudioModel: ObservableObject {
     @Published var usesBluetoothMic = UserDefaults.standard.bool(forKey: "OudLive.bluetoothMic") {
         didSet {
             guard oldValue != usesBluetoothMic else { return }
+            if usesBluetoothMic { phoneSpeakerRequested = false }
             selectedInput = ""
             if running || starting { stop() }
             UserDefaults.standard.set(usesBluetoothMic, forKey: "OudLive.bluetoothMic")
@@ -449,6 +466,7 @@ final class AudioModel: ObservableObject {
                 try session.setPreferredInput(usbMic ?? phoneMic)
             }
             guard token == generation else { return }
+            try session.overrideOutputAudioPort(phoneSpeakerRequested ? .speaker : .none)
             refreshRoute()
             monitoring = safeOutput
             bridge.setMonitoringEnabled(monitoring)
@@ -473,6 +491,7 @@ final class AudioModel: ObservableObject {
         try? session.setActive(false, options: .notifyOthersOnDeactivation)
     }
     private func refreshRoute() {
+        phoneSpeakerActive = session.currentRoute.outputs.contains { $0.portType == .builtInSpeaker }
         inputs = session.availableInputs ?? []
         route = session.currentRoute.outputs.map(\.portName).joined(separator: "، ")
         inputRoute = session.currentRoute.inputs.map(\.portName).joined(separator: "، ")

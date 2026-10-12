@@ -10,11 +10,13 @@ xcodebuild -project OudLive.xcodeproj -scheme OudLive -configuration Debug \
   -sdk iphonesimulator -destination "id=$DEVICE" -derivedDataPath build/Simulator \
   CODE_SIGNING_ALLOWED=NO build > build/simulator.log 2>&1 || { tail -n 80 build/simulator.log; exit 1; }
 xcrun simctl install "$DEVICE" build/Simulator/Build/Products/Debug-iphonesimulator/OudLive.app
-for PAGE in portrait loops presets hero landscape rack mixer effects library memories legacy; do
+for PAGE in eighties nineties modern portrait loops presets hero landscape rack mixer effects library memories legacy; do
   PALETTE=original
   ERA=eighties
   case "$PAGE" in simple) ERA=nineties;; stage) ERA=modern;; esac
-  xcrun simctl launch "$DEVICE" com.oudlive.personal "--console-$PAGE" "--$PAGE" "--theme-studio" "--palette-$PALETTE" "--era-$ERA"
+  DESIGN=eighties
+  case "$PAGE" in nineties) DESIGN=nineties;; modern) DESIGN=modern;; esac
+  xcrun simctl launch "$DEVICE" com.oudlive.personal "--design-$DESIGN" "--console-$PAGE" "--$PAGE" "--theme-studio" "--palette-$PALETTE" "--era-$ERA"
   sleep 5
   xcrun simctl io "$DEVICE" screenshot "build/$PAGE.png"
   WIDTH=430

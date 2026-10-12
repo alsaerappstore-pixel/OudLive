@@ -135,6 +135,11 @@ struct LoopLibraryPanel: View {
                 Spacer()
                 Text(audio.loopPlaying ? "يُسمع الآن" : "متوقف").font(.caption).foregroundStyle(audio.loopPlaying ? .green : .secondary)
             }
+            Toggle(isOn: Binding(get: { audio.phoneSpeakerRequested }, set: { audio.setPhoneSpeaker($0) })) {
+                Label("سماعة الجوال", systemImage: audio.phoneSpeakerActive && audio.running ? "speaker.wave.2.fill" : "speaker")
+            }.disabled(busy || audio.starting)
+            Text(audio.phoneSpeakerRequested ? "الإيقاع على مكبر الهاتف؛ مراقبة المايك مغلقة. قد يلتقط التسجيل صوت الإيقاع من الغرفة." : "المخرج التلقائي: السماعة المتصلة أو مكبر الهاتف. تغيير المخرج قبل التسجيل فقط.")
+                .font(.caption2).foregroundStyle(.secondary)
             HStack {
                 Text("السرعة")
                 Slider(value: $audio.loopSpeed, in: 0.5...2, step: 0.05).accessibilityLabel("سرعة الإيقاع")
