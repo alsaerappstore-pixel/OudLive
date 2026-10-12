@@ -8,7 +8,7 @@ enum SoundMode: String, Codable, CaseIterable, Identifiable {
 }
 enum Parameter: Int, CaseIterable {
     // ABI v4; slots 10...13 replace removed modulation processors.
-    case input, output, low, mid, high, compression, reverb, delay, delayTime, feedback, roomSize, width, early, noise, bypass, mute, decay, predelay, tone, makeup, intensity, recordGain, live, trim
+    case input, output, low, mid, high, compression, reverb, delay, delayTime, feedback, roomSize, width, early, noise, bypass, mute, decay, predelay, tone, makeup, intensity, recordGain, live, trim, reverbWet, reverbDry
     var range: ClosedRange<Double> {
         switch self {
         case .input: return -24...24
@@ -35,6 +35,7 @@ enum Parameter: Int, CaseIterable {
         case .recordGain: return -12...18
         case .live: return 0...1
         case .trim: return -3...3
+        case .reverbWet, .reverbDry: return 0...1
         }
     }
     var label: String {
@@ -63,6 +64,8 @@ enum Parameter: Int, CaseIterable {
         case .recordGain: return "مستوى التسجيل"
         case .live: return "استجابة حية"
         case .trim: return "توازن الوضع"
+        case .reverbWet: return "صدى مبلول • Wet"
+        case .reverbDry: return "صدى جاف • Dry"
         }
     }
     var explanation: String {
@@ -91,6 +94,8 @@ enum Parameter: Int, CaseIterable {
         case .recordGain: return "رفع إضافي لقناة العود في التسجيل والمعاينة؛ مستوى السماعة العام مستقل."
         case .live: return "يوقف الرجع المتكرر ويضيق المساحة ويطلب مخزنًا صغيرًا؛ لا يزيل تأخير البلوتوث."
         case .trim: return "تعويض داخلي محافظ لمقاربة مستويات الأوضاع."
+        case .reverbWet: return "مستوى انعكاسات الصدى وذيله فقط؛ صفر يزيل الصدى. يتبع قوة الصدى دون تغيير مدة الرنين."
+        case .reverbDry: return "مستوى العود المباشر دون إضافة الصدى؛ صفر يعزل الصدى. تبقى معالجة EQ والضغط السابقة، وهذا ليس إزالةً لصدى الغرفة المسجل بالمايك."
         }
     }
     func text(_ value: Double) -> String {
@@ -106,7 +111,7 @@ enum Effect: String, Codable, CaseIterable {
     case reverb, delay, space, noise, eq, compressor
     var parameters: [Parameter] {
         switch self {
-        case .reverb: return [.reverb, .decay, .predelay, .tone]
+        case .reverb: return [.reverb, .decay, .predelay, .tone, .reverbWet, .reverbDry]
         case .delay: return [.delay, .delayTime, .feedback]
         case .space: return [.roomSize, .width, .early]
         case .noise: return [.noise]
@@ -116,15 +121,17 @@ enum Effect: String, Codable, CaseIterable {
     }
 }
 struct SoundSettings: Codable {
-    var schema = 4
+    var schema = 5
     var unprocessed = false // retained for decoding, never a main preset
     var disabledEffects: Set<Effect> = []
     var preset = "Wooden Majlis"
-    var values: [Double] = [6, -9, 1, -0.2, -0.6, 0.2, 0.13, 0, 250, 0, 0.35, 0.25, 0.4, 0.15, 0, 0, 1.2, 24, 0.25, 0.35, 1, 0, 1, -0.4]
+    var values: [Double] = [6, -9, 1, -0.2, -0.6, 0.2, 0.13, 0, 250, 0, 0.35, 0.25, 0.4, 0.15, 0, 0, 1.2, 24, 0.25, 0.35, 1, 0, 1, -0.4, 1, 1]
     init() {}
     func enabled(_ effect: Effect) -> Bool { !disabledEffects.contains(effect) }
     func effective(_ p: Parameter) -> Double {
         for effect in disabledEffects where effect.parameters.contains(p) {
+            if p == .reverbDry { return 1 }
+            if p == .reverbWet { return 0 }
             if [.reverb,.delay,.width,.early,.noise,.low,.mid,.high,.compression,.makeup].contains(p) { return 0 }
         }
         return self[p]
@@ -135,9 +142,9 @@ struct SoundSettings: Codable {
         let oldName = try c.decode(String.self, forKey: .preset)
         let oldValues = try c.decode([Double].self, forKey: .values)
         let version = try c.decodeIfPresent(Int.self, forKey: .schema) ?? 0
-        if version == 4 {
+        if version == 4 || version == 5 {
             preset = Self.names.contains(oldName) ? oldName : "Wooden Majlis"
-            values = oldValues
+            values = oldValues + (version == 4 && oldValues.count == 24 ? [1, 1] : [])
             disabledEffects = try c.decodeIfPresent(Set<Effect>.self, forKey: .disabledEffects) ?? []
         } else {
             let mappings = ["معدن بطيء":"Slow Metal", "إيقاع جاف":"Dry Rhythm", "حجرة حجرية":"Stone Chamber", "مجلس خشبي":"Wooden Majlis", "ريشة حادّة":"Sharp Pick"]
@@ -147,7 +154,7 @@ struct SoundSettings: Codable {
             for p in [Parameter.input,.output] { self[p] = oldValues[p.rawValue] }
             if oldValues.count > 21 { self[.recordGain] = oldValues[21] }
         }
-        schema = 4; unprocessed = false
+        schema = 5; unprocessed = false
     }
     subscript(_ p: Parameter) -> Double {
         get { values[p.rawValue] }
@@ -182,6 +189,10 @@ struct RecordingPreset: Identifiable {
     let name: String
     let description: String
     let controls: [Double]
+    init(id: Int, name: String, description: String, controls: [Double]) {
+        self.id = id; self.name = name; self.description = description
+        self.controls = controls.count == 24 ? controls + [1, 1] : controls
+    }
     var imageName: String { "OudPreset\(id)" }
     var isUnprocessed: Bool { false }
     func settings(preserving current: SoundSettings) -> SoundSettings {

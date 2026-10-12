@@ -7,11 +7,11 @@
 #include <vector>
 namespace oud {
 constexpr float pi=3.14159265358979323846f;
-enum Param:int { Input,Output,Low,Mid,High,Compression,Reverb,Delay,DelayTime,Feedback,RoomSize,Width,Early,Noise,Bypass,Mute,Decay,Predelay,Tone,Makeup,Intensity,RecordGain,Live,Trim,Count };
+enum Param:int { Input,Output,Low,Mid,High,Compression,Reverb,Delay,DelayTime,Feedback,RoomSize,Width,Early,Noise,Bypass,Mute,Decay,Predelay,Tone,Makeup,Intensity,RecordGain,Live,Trim,ReverbWet,ReverbDry,Count };
 using Controls=std::array<float,Count>;
-constexpr Controls defaults={6,-9,1,-.2f,-.6f,.2f,.13f,0,250,0,.35f,.25f,.4f,.15f,0,0,1.2f,24,.25f,.35f,1,0,1,-.4f};
-constexpr Controls minimum={-24,-60,-9,-3,-3,0,0,0,40,0,0,0,0,0,0,0,.5f,10,0,0,0,-12,0,-3};
-constexpr Controls maximum={24,0,9,3,3,1,1,.15f,5000,.35f,1,.65f,.7f,1,1,1,5,40,1,2,1,18,1,3};
+constexpr Controls defaults={6,-9,1,-.2f,-.6f,.2f,.13f,0,250,0,.35f,.25f,.4f,.15f,0,0,1.2f,24,.25f,.35f,1,0,1,-.4f,1,1};
+constexpr Controls minimum={-24,-60,-9,-3,-3,0,0,0,40,0,0,0,0,0,0,0,.5f,10,0,0,0,-12,0,-3,0,0};
+constexpr Controls maximum={24,0,9,3,3,1,1,.15f,5000,.35f,1,.65f,.7f,1,1,1,5,40,1,2,1,18,1,3,1,1};
 inline float clamp(float x,float lo,float hi){return std::max(lo,std::min(hi,x));}
 inline float db(float x){return std::pow(10.f,x/20);}
 static_assert(std::atomic<float>::is_always_lock_free,"Audio requires lock-free controls");
@@ -122,7 +122,9 @@ public:
         const float width=live?std::min(p[Width],.25f):p[Width],echoAmount=live?0:p[Delay];
         const float roomGain=p[Reverb]*(1+2*clamp((p[Reverb]-.3f)/.7f,0,1));
         // Direct oud remains centred; extended upper fader range provides audible room tails.
-        return {(x+p[Intensity]*((mid+side*width)*roomGain+warmEcho*echoAmount))*db(p[Trim]),(x+p[Intensity]*((mid-side*width)*roomGain+warmEcho*echoAmount))*db(p[Trim])};
+        const float direct=p[ReverbDry]*(x+p[Intensity]*warmEcho*echoAmount);
+        const float wet=p[Intensity]*roomGain*p[ReverbWet];
+        return {(direct+(mid+side*width)*wet)*db(p[Trim]),(direct+(mid-side*width)*wet)*db(p[Trim])};
     }
 };
 class DSP {

@@ -3,13 +3,13 @@ import SwiftUI
 @MainActor
 struct MixerView: View {
     @ObservedObject var audio: AudioModel
-    private let channels: [Parameter] = [.output, .input, .reverb, .noise, .compression, .low]
+    private let channels: [Parameter] = [.output, .input, .reverb, .reverbWet, .reverbDry, .noise, .compression, .low]
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Label("مكسر الصوت", systemImage: "slider.vertical.3").font(.headline)
                 Spacer()
-                Text("٦ قنوات • اسحب للتعديل").font(.caption2)
+                Text("٨ قنوات • اسحب للتعديل").font(.caption2)
             }.foregroundStyle(Color(white: 0.12))
             GeometryReader { bounds in
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -22,6 +22,7 @@ struct MixerView: View {
                 }
             }.frame(height: 304)
             Text("الصدى والتشويش: ٠–١٠٠٪. الجهير: ±٩ dB؛ الصفر محايد. اسحب القنوات أفقيًا إذا ضاقت الشاشة.").font(.caption2).foregroundStyle(Color(white: 0.2)).fixedSize(horizontal: false, vertical: true)
+            Text("المبلول: انعكاسات الصدى وذيله. الجاف: العود المباشر قبل الصدى. كلاهما مستقل ٠–١٠٠٪؛ خفض الجاف لا يقلل تغذية الصدى. إيقاف الصدى يعيد الصوت المباشر كاملًا.").font(.caption2).foregroundStyle(Color(white: 0.2)).fixedSize(horizontal: false, vertical: true)
             Text("لمبات المايك والصوت تقيس الإشارة الحية؛ لمبات المؤثرات تبين مقدارها. الأحمر يعني مستوى مرتفعًا. الصوت يضبط السماعة؛ مستوى التسجيل مستقل في صفحة التسجيل.")
                 .font(.caption2).foregroundStyle(Color(white: 0.24)).fixedSize(horizontal: false, vertical: true)
         }
@@ -38,10 +39,10 @@ private struct MixerStrip: View {
     @ObservedObject var audio: AudioModel
     let parameter: Parameter
     private var effect: Effect? {
-        switch parameter { case .reverb: return .reverb; case .noise: return .noise; case .compression: return .compressor; case .low: return .eq; default: return nil }
+        switch parameter { case .reverb, .reverbWet, .reverbDry: return .reverb; case .noise: return .noise; case .compression: return .compressor; case .low: return .eq; default: return nil }
     }
     private var title: String {
-        switch parameter { case .output: return "الصوت"; case .input: return "التقاط\nالمايك"; case .reverb: return "الصدى"; case .noise: return "خفض\nالتشويش"; case .low: return "توازن\nالجهير"; default: return "ضاغط\nالصوت" }
+        switch parameter { case .output: return "الصوت"; case .input: return "التقاط\nالمايك"; case .reverb: return "الصدى"; case .reverbWet: return "صدى مبلول\nWet"; case .reverbDry: return "صدى جاف\nDry"; case .noise: return "خفض\nالتشويش"; case .low: return "توازن\nالجهير"; default: return "ضاغط\nالصوت" }
     }
     private var amount: Double { (audio.value(parameter) - parameter.range.lowerBound) / (parameter.range.upperBound - parameter.range.lowerBound) }
     private var enabled: Bool {
@@ -60,7 +61,7 @@ private struct MixerStrip: View {
     }
     private func adjust(_ value: Double) {
         if let effect, !enabled { audio.setEnabled(effect, true) }
-        if parameter == .reverb && audio.value(.intensity) < 1 { audio.set(.intensity, 1) }
+        if (parameter == .reverb || parameter == .reverbWet) && audio.value(.intensity) < 1 { audio.set(.intensity, 1) }
         audio.set(parameter, value)
     }
     var body: some View {

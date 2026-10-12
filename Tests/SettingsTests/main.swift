@@ -1,7 +1,7 @@
 import Foundation
 let names = ["Slow Metal", "Dry Rhythm", "Stone Chamber", "Wooden Majlis", "Sharp Pick", "Velvet Bass", "Clear Studio", "Open Courtyard", "Tarab Hall", "Silk Strings"]
 precondition(SoundSettings.names == names && RecordingPreset.all.map(\.name) == names)
-precondition(Parameter.allCases.count == 24 && SoundMode.allCases == [.oud])
+precondition(Parameter.allCases.count == 26 && SoundMode.allCases == [.oud])
 let legacy = """
 {"preset":"معدن بطيء","values":[12,-15,3,-5,4,0.3,0.22,0.2,390,0.2,0.95,0.15,1,0,1,0,1.8,25,0.6,1,1,7],"disabledEffects":["motion","doubler"],"unprocessed":true}
 """
@@ -63,4 +63,12 @@ precondition(FileManager.default.fileExists(atPath: takeURLs[2].path) && FileMan
 let all = RecordingEntry.deletionURLs(takes, selected: Set(takes.map(\.id)), directory: takesRoot)
 precondition(Set(all) == Set(takeURLs))
 print("PASS: legacy WAV/MP4 pairs group once; selected/all deletion includes both siblings and rejects files outside the library")
-
+var mixSettings = SoundSettings(); mixSettings[.reverbWet] = 0.37; mixSettings[.reverbDry] = 0.62
+let mixSaved = try JSONDecoder().decode(SoundSettings.self, from: JSONEncoder().encode(mixSettings))
+precondition(mixSaved.valid && mixSaved[.reverbWet] == 0.37 && mixSaved[.reverbDry] == 0.62)
+mixSettings.disabledEffects.insert(.reverb)
+precondition(mixSettings.effective(.reverbWet) == 0 && mixSettings.effective(.reverbDry) == 1)
+let v4Data = try JSONSerialization.data(withJSONObject: ["schema":4,"preset":"Wooden Majlis","values":Array(SoundSettings().values.prefix(24))])
+let v4 = try JSONDecoder().decode(SoundSettings.self, from: v4Data)
+precondition(v4.valid && v4[.reverbWet] == 1 && v4[.reverbDry] == 1)
+print("PASS wet/dry persistence, effect bypass and v4 preset migration")
