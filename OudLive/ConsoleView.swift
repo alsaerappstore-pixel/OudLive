@@ -58,7 +58,10 @@ struct ConsoleView: View {
                     CopyrightFooter()
                 }.padding(wide ? 12 : 16).frame(maxWidth: 1500).frame(maxWidth: .infinity)
             }
-            .background(design == .eighties ? Color(red: 0.12, green: 0.075, blue: 0.04) : Color(red: 0.015, green: 0.03, blue: 0.038))
+            .background {
+                if design == .eighties { Image("ConsoleWalnut").resizable(resizingMode: .tile).ignoresSafeArea() }
+                else { Color(red: 0.015, green: 0.03, blue: 0.038).ignoresSafeArea() }
+            }
             .onChange(of: wide) { _ in
                 if audio.cameraSession != nil && !busy && !audio.cameraPreviewPreparing { audio.openCameraPreview(front: audio.frontCamera) }
             }
