@@ -1,20 +1,15 @@
 {
-  "version": "3.14.0",
-  "build_number": 23,
-  "result": "blocked_before_build",
-  "commit": "dcabc094a4d3053baa12d39e4fae5a4707310a70",
-  "workflow_run": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/38131311082",
-  "reason": "GitHub Actions: recent account payments failed or spending limit needs increase",
-  "playable_loops": 160,
-  "groups": {
-    "منوع 1": 142,
-    "منوع 2": 18
-  },
-  "originals_unchanged": true,
-  "local_loop_dsp_tests": "passed",
-  "local_library_hash_and_seam_tests": "passed",
-  "swift_tests": "not_run",
-  "apple_build": "not_started",
+  "version": "3.15.0",
+  "build_number": 24,
+  "result": "success",
+  "commit": "cc050ba680e5efb07edd7b73023f15da2013903d",
+  "workflow_run": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/38235673529",
+  "artifact_url": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/38235673529/artifacts/11741270364",
+  "artifact_sha256": "sha256:76be340e63594d03b97853e8b03624fa6e7904996a6dba3cb2b06ef7e503c744",
+  "wet_dry_dsp_tests": "passed",
+  "settings_migration_tests": "passed",
+  "audio_video_tests": "passed",
+  "simulator_reviewed": true,
   "device_tested": false,
-  "ipa_produced": false
+  "signed": false
 }
