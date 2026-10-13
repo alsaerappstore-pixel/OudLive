@@ -171,7 +171,10 @@ public:
             recordLimiter=need<recordLimiter?need:recordLimiter+limiterRelease*(need-recordLimiter);recGR=std::max(recGR,-20*std::log10(std::max(recordLimiter,1e-9f)));
             if(recordLeft)recordLeft[i]=clamp(rec[0]*recordLimiter,-.98f,.98f);if(recordRight)recordRight[i]=clamp(rec[1]*recordLimiter,-.98f,.98f);recPeak=std::max(recPeak,maxRec*recordLimiter);
             float gain=monitorMicrophone?db(current[Output])*(1-current[Mute]):0;
-            float loopGain=db(current[Output])*(1-current[Mute]);
+            // Microphone monitoring mute must never silence accompaniment.
+            // On the phone speaker only the loop channel fader controls its level;
+            // a saved headphone-monitor attenuation must not mute the speaker.
+            float loopGain=monitorMicrophone?db(current[Output]):1.0f;
             float y[2]={combined[0]*channelGain*gain+loop[0]*loopGain,combined[1]*channelGain*gain+loop[1]*loopGain},peak=std::max(std::abs(y[0]),std::abs(y[1]));
             need=peak>.94f?.94f/peak:1;limiterGain=need<limiterGain?need:limiterGain+limiterRelease*(need-limiterGain);
             left[i]=clamp(y[0]*limiterGain,-.98f,.98f);right[i]=clamp(y[1]*limiterGain,-.98f,.98f);outPeak=std::max(outPeak,peak*limiterGain);

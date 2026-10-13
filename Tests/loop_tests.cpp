@@ -44,6 +44,15 @@ int main(){
         mix.setOudVolume(0);mix.process(mic.data(),ml.data(),mr.data(),mic.size(),rl.data(),rr.data(),true,l.data(),r.data(),true);
         assert(std::abs(rl.back()-.025f)<1e-5);
     }
+    // Speaker accompaniment survives saved microphone mute and headphone gain.
+    oud::DSP speaker;speaker.set(oud::Output,-60);speaker.set(oud::Mute,1);speaker.prepare(48000);
+    std::fill(mic.begin(),mic.end(),.5f);std::fill(l.begin(),l.end(),.1f);std::fill(r.begin(),r.end(),.1f);
+    speaker.process(mic.data(),ml.data(),mr.data(),mic.size(),rl.data(),rr.data(),false,l.data(),r.data(),false);
+    assert(std::abs(ml.back()-.1f)<1e-5 && std::abs(mr.back()-.1f)<1e-5);
+    std::fill(l.begin(),l.end(),0);std::fill(r.begin(),r.end(),0);
+    speaker.process(mic.data(),ml.data(),mr.data(),mic.size(),rl.data(),rr.data(),false,l.data(),r.data(),false);
+    assert(ml.back()==0 && mr.back()==0); // no microphone feedback on speaker
+    std::cout<<"PASS speaker loop audible with microphone mute and -60 dB headphone gain; microphone remains silent\n";
     std::cout<<"PASS independent oud/loop channel balance, matching live/file mix, true mute and listen-only exclusion\n";
     std::cout<<"PASS original PCM at 100%, looping, variable rate, live without mic monitoring, record inclusion/exclusion, final peak protection, stop and replace\n";
 }

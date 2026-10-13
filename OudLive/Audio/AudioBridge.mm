@@ -80,7 +80,9 @@ static OSStatus render(void *context, AudioUnitRenderActionFlags *flags,
     // Close the live output immediately; Swift reopens it only after validating
     // the current headphone route. Recording has its own independent bus.
     _state->monitoring.store(false);
-    _state->loop.playing.store(false);
+    // Loops are safe on both speakers and headphones. Do not erase playback
+    // intent here: a late route notification could otherwise silence a loop
+    // after Swift restored it. Swift stops the unit when hardware changes.
 }
 - (BOOL)startWithSampleRate:(double)sampleRate error:(NSError **)error {
     [self stop];
