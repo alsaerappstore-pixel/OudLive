@@ -56,10 +56,10 @@ private struct PerformanceStrip: View {
                             }
                         }.padding(6).frame(width: 44, height: 44)
                             .background(era == .eighties ? Color(white: 0.1) : Color(white: 0.55), in: RoundedRectangle(cornerRadius: 5))
-                            .shadow(radius: 3, y: 2).offset(y: (1 - value) * travel)
+                            .shadow(radius: 3, y: 2).offset(y: CGFloat(1.0 - value) * travel)
                     }.frame(maxWidth: .infinity, maxHeight: .infinity).contentShape(Rectangle())
                         .gesture(DragGesture(minimumDistance: 0).onChanged {
-                            value = min(1, max(0, 1 - ($0.location.y - 22) / travel))
+                            value = Double(min(1, max(0, 1 - ($0.location.y - 22) / travel)))
                         })
                 }.frame(height: 180)
                     .accessibilityElement(children: .ignore).accessibilityLabel(title)
