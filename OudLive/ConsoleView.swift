@@ -140,7 +140,7 @@ struct ConsoleView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Label("صوت العود مباشر", systemImage: "waveform.path").font(.headline)
                 SignalLED(level: audio.inputLevel, tint: .mint)
-                Text(audio.settings.preset).font(.system(.body, design: .monospaced))
+                Text("مراقبة الإشارة الحية").font(.system(.body, design: .monospaced))
             }.padding(16).frame(maxWidth: .infinity).background(Color.cyan.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
             rackRow(.reverb, "الصدى", [.reverbWet, .reverbDry])
             rackRow(.eq, "موازن الصوت", [.low, .high])
@@ -176,29 +176,18 @@ struct ConsoleView: View {
         }.buttonStyle(.borderedProminent).disabled(busy)
     }
     private func listeningPanel(wide: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if wide {
-                HStack(spacing: 12) {
-                    Label("دون تسجيل", systemImage: "ear.badge.waveform").font(.caption.bold())
-                    microphoneChoice.frame(maxWidth: 330)
-                    listeningButton
-                    AudioOutputPicker().frame(width: 44, height: 44)
-                }
-            } else {
+        VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Label("استماع مباشر • دون تسجيل", systemImage: "ear.badge.waveform").font(.subheadline.bold())
-                Spacer()
+                listeningButton
                 AudioOutputPicker().frame(width: 44, height: 44)
             }
-            DisclosureGroup("مصدر المايك والتوصيل") { microphoneChoice }
-            listeningButton
-            }
-            if audio.running {
-                Text("المايك: \(audio.inputRoute) • الخروج: \(audio.route)").font(.caption2).foregroundStyle(Color(white: 0.8))
-            }
-            if !wide { Text(audio.usesBluetoothMic ? "وصّل UGREEN من إعدادات البلوتوث أولًا. مايك السماعة يعمل بوضع المكالمات وقد يقل وضوح الموسيقى؛ يوجد تأخير لاسلكي." : "يمكنك سماع المؤثرات في السماعة قبل التسجيل. اختر السماعة من زر المخرج؛ مايك الآيفون أو USB يحافظ على تفاصيل العود.")
-                .font(.caption2).foregroundStyle(Color(white: 0.7))
-            }
+            DisclosureGroup("المايك والتوصيل • دون تسجيل") {
+                microphoneChoice
+                Text(audio.running ? "المايك: \(audio.inputRoute) • الخروج: \(audio.route)" : "اختر مايك الهاتف أو السماعة؛ الاستماع لا يحتاج تسجيلًا.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Text("سماعة البلوتوث لها تأخير. تشغيل مكبر الهاتف مخصص للإيقاع؛ مراقبة المايك تحتاج سماعة.")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }.font(.caption)
         }.modifier(ConsolePanel(padding: 12))
     }
     private func header(wide: Bool) -> some View {
