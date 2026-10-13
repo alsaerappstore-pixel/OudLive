@@ -13,7 +13,7 @@ final class AudioModel: ObservableObject {
         let resumeLoop = loopPlaying
         if running { stop() }
         phoneSpeakerRequested = enabled
-        if enabled { usesBluetoothMic = false }
+        if enabled { usesBluetoothMic = false; selectedInput = "" }
         if resume {
             Task {
                 await start()
@@ -433,12 +433,14 @@ final class AudioModel: ObservableObject {
         defer { if token == generation { starting = false } }
         do {
             // Enable HFP only on explicit selection. A2DP is output-only.
-            let options: AVAudioSession.CategoryOptions = usesBluetoothMic ? [.allowBluetooth, .defaultToSpeaker] : [.allowBluetoothA2DP, .defaultToSpeaker]
-            try session.setCategory(.playAndRecord, mode: usesBluetoothMic ? .default : .measurement, options: options)
+            let options: AVAudioSession.CategoryOptions = phoneSpeakerRequested ? [.defaultToSpeaker] : (usesBluetoothMic ? [.allowBluetooth, .defaultToSpeaker] : [.allowBluetoothA2DP, .defaultToSpeaker])
+            try session.setCategory(.playAndRecord, mode: (phoneSpeakerRequested || usesBluetoothMic) ? .default : .measurement, options: options)
             try session.setPreferredSampleRate(48000)
             try session.setPreferredIOBufferDuration((settings[.live] > 0.5 ? 128.0 : (stableBuffer ? 512.0 : 256.0)) / 48000.0)
             try session.setActive(true)
-            if usesBluetoothMic {
+            if phoneSpeakerRequested {
+                try session.setPreferredInput(session.availableInputs?.first { $0.portType == .builtInMic })
+            } else if usesBluetoothMic {
                 for _ in 0..<20 {
                     if session.availableInputs?.contains(where: { $0.portType == .bluetoothHFP }) == true { break }
                     try await Task.sleep(nanoseconds: 50_000_000)
@@ -467,6 +469,17 @@ final class AudioModel: ObservableObject {
             }
             guard token == generation else { return }
             try session.overrideOutputAudioPort(phoneSpeakerRequested ? .speaker : .none)
+            if phoneSpeakerRequested {
+                // Let hardware routing settle before sizing and starting RemoteIO.
+                for _ in 0..<20 {
+                    try await Task.sleep(nanoseconds: 50_000_000)
+                    guard token == generation else { return }
+                    if session.currentRoute.outputs.contains(where: { $0.portType == .builtInSpeaker }) { break }
+                }
+                guard session.currentRoute.outputs.contains(where: { $0.portType == .builtInSpeaker }) else {
+                    throw VideoRecorder.error("لم ينتقل الصوت إلى مكبر الجوال. المخرج الحالي: " + session.currentRoute.outputs.map(\.portName).joined(separator: "، "))
+                }
+            }
             refreshRoute()
             monitoring = safeOutput
             bridge.setMonitoringEnabled(monitoring)

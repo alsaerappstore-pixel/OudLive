@@ -1,6 +1,17 @@
 import Foundation
 #if canImport(UIKit)
 import SwiftUI
+import MediaPlayer
+
+struct PhoneMediaVolume: UIViewRepresentable {
+    func makeUIView(context: Context) -> MPVolumeView {
+        let view = MPVolumeView(frame: .zero)
+        view.showsRouteButton = false
+        view.accessibilityLabel = "صوت مكبر الهاتف أو السماعة الحالية"
+        return view
+    }
+    func updateUIView(_ view: MPVolumeView, context: Context) {}
+}
 #endif
 
 struct UserLoop: Codable, Identifiable {
@@ -138,6 +149,10 @@ struct LoopLibraryPanel: View {
             Toggle(isOn: Binding(get: { audio.phoneSpeakerRequested }, set: { audio.setPhoneSpeaker($0) })) {
                 Label("سماعة الجوال", systemImage: audio.phoneSpeakerActive && audio.running ? "speaker.wave.2.fill" : "speaker")
             }.disabled(busy || audio.starting)
+            Text(audio.running ? "المخرج الفعلي: \(audio.route)" : "يتم تفعيل المخرج عند تشغيل الإيقاع")
+                .font(.caption.bold())
+            Text("صوت الهاتف / السماعة").font(.caption)
+            PhoneMediaVolume().frame(height: 44)
             Text(audio.phoneSpeakerRequested ? "الإيقاع على مكبر الهاتف؛ مراقبة المايك مغلقة. قد يلتقط التسجيل صوت الإيقاع من الغرفة." : "المخرج التلقائي: السماعة المتصلة أو مكبر الهاتف. تغيير المخرج قبل التسجيل فقط.")
                 .font(.caption2).foregroundStyle(.secondary)
             HStack {
