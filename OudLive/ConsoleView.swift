@@ -35,7 +35,7 @@ struct ConsoleView: View {
                         if design == .nineties {
                             vintageRack
                         } else {
-                            MixerView(audio: audio).id("console-mixer")
+                            PerformanceMixer(audio: audio).id("console-mixer")
                         }
                         EffectsPresetDrawer(revealed: $presetsRevealed,
                             cover: effectRack(wide: wide), back: QuickPresetGrid(audio: audio))

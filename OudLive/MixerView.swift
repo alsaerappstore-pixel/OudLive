@@ -1,6 +1,61 @@
 import SwiftUI
 
 @MainActor
+struct PerformanceMixer: View {
+    @ObservedObject var audio: AudioModel
+    @Environment(\.oudEra) private var era
+    var body: some View {
+        HStack(spacing: 4) {
+            strip("العود", value: Binding(get: { Double(audio.oudVolume) / 2 }, set: { audio.oudVolume = Float($0 * 2) }), percent: Int(audio.oudVolume * 100))
+            strip("الإيقاع", value: Binding(get: { Double(audio.loopVolume) }, set: { audio.loopVolume = Float($0) }), percent: Int(audio.loopVolume * 100))
+            strip("صدى مبلول", value: binding(.reverbWet), percent: Int(audio.value(.reverbWet) * 100))
+            strip("صدى جاف", value: binding(.reverbDry), percent: Int(audio.value(.reverbDry) * 100))
+        }.padding(8).background(era == .eighties ? Color(white: 0.72) : Color(red: 0.025, green: 0.06, blue: 0.08), in: RoundedRectangle(cornerRadius: 12))
+    }
+    private func binding(_ parameter: Parameter) -> Binding<Double> {
+        Binding(get: { audio.value(parameter) }, set: {
+            audio.setEnabled(.reverb, true)
+            audio.set(parameter, $0)
+        })
+    }
+    private func strip(_ title: String, value: Binding<Double>, percent: Int) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: "waveform").font(.title2)
+            Text(title).font(.caption.bold()).frame(height: 32)
+            HStack(spacing: 6) {
+                GeometryReader { geometry in
+                    let travel = max(1, geometry.size.height - 44)
+                    ZStack(alignment: .top) {
+                        Capsule().fill(.black.opacity(0.75)).frame(width: 5).padding(.vertical, 22)
+                        VStack(spacing: 5) {
+                            ForEach(0..<5, id: \.self) { n in
+                                Rectangle().fill(n == 2 ? Color.white : Color.gray).frame(height: n == 2 ? 3 : 1)
+                            }
+                        }.padding(6).frame(width: 44, height: 44)
+                            .background(era == .eighties ? Color(white: 0.1) : Color(white: 0.55), in: RoundedRectangle(cornerRadius: 5))
+                            .shadow(radius: 3, y: 2).offset(y: (1 - value.wrappedValue) * travel)
+                    }.frame(maxWidth: .infinity, maxHeight: .infinity).contentShape(Rectangle())
+                        .gesture(DragGesture(minimumDistance: 0).onChanged {
+                            value.wrappedValue = min(1, max(0, 1 - ($0.location.y - 22) / travel))
+                        })
+                }.frame(height: 180)
+                    .accessibilityElement(children: .ignore).accessibilityLabel(title)
+                    .accessibilityValue("\(percent) بالمئة")
+                    .accessibilityAdjustableAction { value.wrappedValue = min(1, max(0, value.wrappedValue + ($0 == .increment ? 0.025 : -0.025))) }
+                MixerLamps(level: value.wrappedValue).frame(width: 7, height: 180).accessibilityHidden(true)
+            }.environment(\.layoutDirection, .leftToRight)
+            Text("\(percent)٪").font(.body.monospacedDigit().bold())
+            Text("المستوى").font(.caption2)
+        }.padding(.vertical, 14).padding(.horizontal, 4).frame(maxWidth: .infinity)
+            .foregroundStyle(era == .eighties ? Color.black : Color.white)
+            .background {
+                if era == .eighties { EraSurface() }
+                else { RoundedRectangle(cornerRadius: 9).fill(Color.cyan.opacity(0.045)).overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Color.cyan.opacity(0.18))) }
+            }
+    }
+}
+
+@MainActor
 struct MixerView: View {
     @ObservedObject var audio: AudioModel
     @Environment(\.oudEra) private var era
