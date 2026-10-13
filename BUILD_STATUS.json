@@ -1,7 +1,7 @@
 {
   "version": "3.17.0",
   "build_number": 26,
-  "result": "ipa_built_audio_tests_passed",
+  "result": "success",
   "commit": "023bcd2bac8178825cbf265ff88f9cb42f680761",
   "workflow_run": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/38400728878",
   "artifact_url": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/38400728878/artifacts/11815535752",
@@ -9,7 +9,7 @@
   "speaker_mute_regression": "passed",
   "audio_video_tests": "passed",
   "settings_migration_tests": "passed",
-  "simulator_capture": "in_progress_at_handoff",
+  "simulator_capture": "passed",
   "ui_changed": false,
   "device_tested": false,
   "signed": false
