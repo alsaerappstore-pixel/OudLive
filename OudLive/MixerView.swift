@@ -19,30 +19,22 @@ struct PerformanceMixer: View {
         })
     }
     private func strip(_ title: String, value: Binding<Double>, percent: Int) -> some View {
+        PerformanceStrip(title: title, value: value, percent: percent)
+    }
+}
+
+private struct PerformanceStrip: View {
+    let title: String
+    @Binding var value: Double
+    let percent: Int
+    @Environment(\.oudEra) private var era
+    var body: some View {
         VStack(spacing: 12) {
             Image(systemName: "waveform").font(.title2)
             Text(title).font(.caption.bold()).frame(height: 32)
             HStack(spacing: 6) {
-                GeometryReader { geometry in
-                    let travel = max(1, geometry.size.height - 44)
-                    ZStack(alignment: .top) {
-                        Capsule().fill(.black.opacity(0.75)).frame(width: 5).padding(.vertical, 22)
-                        VStack(spacing: 5) {
-                            ForEach(0..<5, id: \.self) { n in
-                                Rectangle().fill(n == 2 ? Color.white : Color.gray).frame(height: n == 2 ? 3 : 1)
-                            }
-                        }.padding(6).frame(width: 44, height: 44)
-                            .background(era == .eighties ? Color(white: 0.1) : Color(white: 0.55), in: RoundedRectangle(cornerRadius: 5))
-                            .shadow(radius: 3, y: 2).offset(y: (1 - value.wrappedValue) * travel)
-                    }.frame(maxWidth: .infinity, maxHeight: .infinity).contentShape(Rectangle())
-                        .gesture(DragGesture(minimumDistance: 0).onChanged {
-                            value.wrappedValue = min(1, max(0, 1 - ($0.location.y - 22) / travel))
-                        })
-                }.frame(height: 180)
-                    .accessibilityElement(children: .ignore).accessibilityLabel(title)
-                    .accessibilityValue("\(percent) بالمئة")
-                    .accessibilityAdjustableAction { value.wrappedValue = min(1, max(0, value.wrappedValue + ($0 == .increment ? 0.025 : -0.025))) }
-                MixerLamps(level: value.wrappedValue).frame(width: 7, height: 180).accessibilityHidden(true)
+                fader
+                MixerLamps(level: value).frame(width: 7, height: 180).accessibilityHidden(true)
             }.environment(\.layoutDirection, .leftToRight)
             Text("\(percent)٪").font(.body.monospacedDigit().bold())
             Text("المستوى").font(.caption2)
@@ -53,6 +45,28 @@ struct PerformanceMixer: View {
                 else { RoundedRectangle(cornerRadius: 9).fill(Color.cyan.opacity(0.045)).overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Color.cyan.opacity(0.18))) }
             }
     }
+    private var fader: some View {
+                GeometryReader { geometry in
+                    let travel = max(1, geometry.size.height - 44)
+                    ZStack(alignment: .top) {
+                        Capsule().fill(.black.opacity(0.75)).frame(width: 5).padding(.vertical, 22)
+                        VStack(spacing: 5) {
+                            ForEach(0..<5, id: \.self) { n in
+                                Rectangle().fill(n == 2 ? Color.white : Color.gray).frame(height: n == 2 ? 3 : 1)
+                            }
+                        }.padding(6).frame(width: 44, height: 44)
+                            .background(era == .eighties ? Color(white: 0.1) : Color(white: 0.55), in: RoundedRectangle(cornerRadius: 5))
+                            .shadow(radius: 3, y: 2).offset(y: (1 - value) * travel)
+                    }.frame(maxWidth: .infinity, maxHeight: .infinity).contentShape(Rectangle())
+                        .gesture(DragGesture(minimumDistance: 0).onChanged {
+                            value = min(1, max(0, 1 - ($0.location.y - 22) / travel))
+                        })
+                }.frame(height: 180)
+                    .accessibilityElement(children: .ignore).accessibilityLabel(title)
+                    .accessibilityValue("\(percent) بالمئة")
+                    .accessibilityAdjustableAction { value = min(1, max(0, value + ($0 == .increment ? 0.025 : -0.025))) }
+    }
+
 }
 
 @MainActor
