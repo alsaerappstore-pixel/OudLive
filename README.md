@@ -1,6 +1,6 @@
-# عود لايف 3.17 — إصلاح الإيقاع على مكبر الهاتف
+# عود لايف 3.18 — اختيار مكبر الهاتف وصوت الجهاز
 
-[تحميل نسخة الآيفون IPA](https://github.com/alsaerappstore-pixel/OudLive/actions/runs/38400728878/artifacts/11815535752)
+[تحميل نسخة الآيفون IPA](https://github.com/alsaerappstore-pixel/OudLive/actions/runs/38442974069/artifacts/11838290343)
 
 فك ZIP وثبت OudLive-unsigned.ipa باستخدام Sideloadly بنفس حساب Apple السابق فوق التطبيق الموجود. لا تحذف التطبيق للحفاظ على تسجيلاتك.
 
@@ -13,3 +13,5 @@
 ياسر الغامدي 2026
 
 [تفاصيل إصلاح مكبر الهاتف](SPEAKER_FIX_317_AR.md)
+
+[تفاصيل اختيار المخرج ومنزلق صوت الجهاز](SPEAKER_ROUTE_318_AR.md)

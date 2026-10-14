@@ -1,16 +1,14 @@
 {
-  "version": "3.17.0",
-  "build_number": 26,
+  "version": "3.18.0",
+  "build_number": 27,
   "result": "success",
-  "commit": "023bcd2bac8178825cbf265ff88f9cb42f680761",
-  "workflow_run": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/38400728878",
-  "artifact_url": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/38400728878/artifacts/11815535752",
-  "artifact_sha256": "sha256:97d7230fd9133000875342961d7e397c27fabc98c4cc07c310811dfb28faf39b",
-  "speaker_mute_regression": "passed",
+  "commit": "ea8a5db94a3fadae104a37396ef56e3c8b762489",
+  "workflow_run": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/38442974069",
+  "artifact_url": "https://github.com/alsaerappstore-pixel/OudLive/actions/runs/38442974069/artifacts/11838290343",
+  "artifact_sha256": "sha256:8d2fb234a6e888410142639f8f8367d0933029d4cedbcca19a2684ad9ce75f56",
   "audio_video_tests": "passed",
   "settings_migration_tests": "passed",
   "simulator_capture": "passed",
-  "ui_changed": false,
   "device_tested": false,
   "signed": false
 }
